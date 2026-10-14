@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+data/sessions/*.json
+data/uploads/**
+data/chroma/
+data/faiss/
+!data/knowledge_base/.gitkeep
+!data/commands/*.yaml
+.DS_Store

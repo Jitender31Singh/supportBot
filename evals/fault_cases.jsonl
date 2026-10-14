@@ -1,0 +1,4 @@
+{"input":{"snapshot":{"vehicle_status":"Active","device_status":"Inactive","subscription_due":null},"dashboard_evidence":"location not updating"},"expected_category":"account_issue"}
+{"input":{"snapshot":{"minutes_since_last_update":2,"gsm_signals":4,"battery_connected":true,"state":"Moving"},"dashboard_evidence":"the dashboard location is stale"},"expected_category":"software_issue"}
+{"input":{"snapshot":{"minutes_since_last_update":60,"gsm_signals":1,"battery_connected":true,"state":"Ignition on"},"dashboard_evidence":"vehicle has moved but location has not updated"},"expected_category":"hardware_issue"}
+{"input":{"snapshot":{"minutes_since_last_update":240,"gsm_signals":4,"battery_connected":true,"state":"Ignition off","parked":true},"dashboard_evidence":"vehicle is parked"},"expected_category":"parked_ignition_off"}

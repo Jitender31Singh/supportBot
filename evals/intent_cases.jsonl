@@ -1,0 +1,6 @@
+{"input":{"message":"Hi","awaiting":"none","workflow_stack":[]},"expected_intent":"greeting"}
+{"input":{"message":"My GPS location is not updating","awaiting":"none","workflow_stack":[]},"expected_intent":"new_query"}
+{"input":{"message":"HR85G2799","awaiting":"vehicle_no","active_frame_id":"frame-1","workflow_stack":[]},"expected_intent":"answers_pending"}
+{"input":{"message":"How do I create a geofence?","awaiting":"command_screenshot","active_frame_id":"frame-1","workflow_stack":[]},"expected_intent":"side_question"}
+{"input":{"message":"continue","awaiting":"none","workflow_stack":[{"frame_id":"frame-1","type":"diagnosis","status":"paused","paused_at_step":"waiting for a screenshot"}]},"expected_intent":"resume_request"}
+{"input":{"message":"fixed","awaiting":"resolution_confirm","active_frame_id":"frame-1","workflow_stack":[]},"expected_intent":"resolution_reply"}
