@@ -13,6 +13,8 @@ data/faiss/
 !data/commands/*.yaml
 .DS_Store
 
-/data/*.log
+*.log
+data/*.log
+assistant.log
 data/assistant.log
 .idea/*
