@@ -1,0 +1,139 @@
+device_type: Teltonika
+aliases:
+- Teltonika_CAN
+- Teltonika CAN
+- TMT250
+- GH5200
+- FMB920
+- FMB120
+- FMB125
+- FMB003
+- FMB010
+port: 8501
+configuration:
+  server: setparam 2004:52.74.44.145
+  apn: setparam 2001:iot.com
+  port_cmd: setparam 2005:8501
+  port: 8501
+  reboot: cpureset
+commands:
+- id: status
+  order: 1
+  command: getstatus
+  purpose: Check device modem, GSM signal, GPRS connection, and battery status
+  how_to_send: Send this SMS from the registered number or via GPRS command terminal,
+    then attach a screenshot of the response.
+  output_schema:
+    gsm_signal:
+      type: integer
+    battery_voltage:
+      type: number
+    gprs_connected:
+      type: boolean
+  analysis:
+    expected_description: Modem active, GSM signal good, GPRS connected, battery healthy
+    llm_hint: Explain findings in plain language; never infer a missing field.
+    rules:
+    - field: gsm_signal
+      condition: < 2
+      finding: Weak GSM signal
+      advice: Move the vehicle to an area with stronger coverage.
+    - field: gprs_connected
+      condition: == false
+      finding: GPRS not connected to server
+      advice: Verify APN and SIM data status.
+    - field: battery_voltage
+      condition: < 3.7
+      finding: Battery voltage low
+      advice: Check external vehicle power connection.
+  next_if_inconclusive:
+  - gps
+- id: gps
+  order: 2
+  command: getgps
+  purpose: Check GPS coordinates, satellite count and fix status
+  how_to_send: Send this SMS from the registered number or via GPRS command terminal,
+    then attach a screenshot of the response.
+  output_schema:
+    gps_fix:
+      type: string
+    satellites:
+      type: integer
+  analysis:
+    expected_description: GPS fix valid with 3 or more satellites
+    llm_hint: Explain findings in plain language; never infer a missing field.
+    rules:
+    - field: gps_fix
+      condition: == no
+      finding: GPS has no fix
+      advice: Move vehicle to an open area with clear sky view.
+    - field: satellites
+      condition: < 3
+      finding: Low satellite count
+      advice: Check GPS antenna placement and sky visibility.
+  next_if_inconclusive:
+  - ver
+- id: ver
+  order: 3
+  command: getver
+  purpose: Check device firmware version and hardware ID
+  how_to_send: Send this SMS from the registered number or via GPRS command terminal,
+    then attach a screenshot of the response.
+  output_schema:
+    firmware:
+      type: string
+    imei:
+      type: string
+  analysis:
+    expected_description: Valid firmware version and IMEI detected
+    llm_hint: Ensure firmware version matches approved TrackoBit release.
+    rules: []
+  next_if_inconclusive: []
+- id: server
+  order: 4
+  command: setparam 2004:52.74.44.145
+  purpose: Configure server IP address (52.74.44.145) parameter 2004
+  how_to_send: Send this SMS command or via GPRS terminal to configure server IP.
+  output_schema:
+    response:
+      type: string
+  analysis:
+    expected_description: Parameter 2004 updated confirmation
+    rules: []
+  next_if_inconclusive: []
+- id: apn
+  order: 5
+  command: setparam 2001:iot.com
+  purpose: Configure APN (iot.com) parameter 2001
+  how_to_send: Send this SMS command or via GPRS terminal to set APN.
+  output_schema:
+    response:
+      type: string
+  analysis:
+    expected_description: Parameter 2001 updated confirmation
+    rules: []
+  next_if_inconclusive: []
+- id: port
+  order: 6
+  command: setparam 2005:8501
+  purpose: Configure server port (8501) parameter 2005
+  how_to_send: Send this SMS command or via GPRS terminal to set port.
+  output_schema:
+    response:
+      type: string
+  analysis:
+    expected_description: Parameter 2005 updated confirmation
+    rules: []
+  next_if_inconclusive: []
+- id: reboot
+  order: 7
+  command: cpureset
+  purpose: Reboot tracker CPU to apply configuration changes
+  how_to_send: Send this SMS command to restart the tracker.
+  output_schema:
+    response:
+      type: string
+  analysis:
+    expected_description: Device reboot confirmation
+    rules: []
+  next_if_inconclusive: []

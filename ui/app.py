@@ -4,7 +4,7 @@ import os
 import requests
 import streamlit as st
 
-API_BASE=os.getenv('UI_API_BASE_URL','http://127.0.0.1:8000').rstrip('/')
+API_BASE=os.getenv('UI_API_BASE_URL','http://127.0.0.1:8000').strip().rstrip('/')
 st.set_page_config(page_title='TrackoBit Support',page_icon='🛰️',layout='wide',initial_sidebar_state='expanded')
 
 st.markdown('''

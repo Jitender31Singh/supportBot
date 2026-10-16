@@ -23,7 +23,9 @@ def build_graph(runtime: Runtime):
       'resolution_check':'resolution_check','resume_chosen_workflow':'resume_chosen_workflow','stale_resume_handler':'stale_resume_handler',
       'choose_workflow':'choose_workflow','clarify_node':'clarify_node'})
     graph.add_conditional_edges('query_classifier',routes.route_after_query,{
-      'rag_answer':'rag_answer','push_frame':'push_frame','clarify_node':'clarify_node'})
+      'rag_answer':'rag_answer','push_frame':'push_frame','clarify_node':'clarify_node','show_device_commands':'show_device_commands'})
+    graph.add_conditional_edges('show_device_commands',routes.route_after_device_commands,{
+      'reminder_footer':'reminder_footer','save_session':'save_session'})
     graph.add_conditional_edges('rag_answer',routes.route_after_rag,{
       'human_handoff':'human_handoff','reminder_footer':'reminder_footer','save_session':'save_session'})
     graph.add_edge('push_frame','symptom_analyzer')

@@ -10,6 +10,7 @@ class AssistantState(TypedDict, total=False):
     query_kind: str
     query_confidence: float
     query_confidence_threshold: float
+    device_type_query: str | None
     active_workflow: str
     awaiting: str
     symptoms: dict[str, Any]
