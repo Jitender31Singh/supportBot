@@ -42,6 +42,7 @@ graph TD;
 	reminder_footer(reminder_footer)
 	complete_frame(complete_frame)
 	update_dashboard_evidence(update_dashboard_evidence)
+	show_device_commands(show_device_commands)
 	resume_router(resume_router)
 	save_session(save_session)
 	__end__([<p>__end__</p>]):::last
@@ -52,6 +53,7 @@ graph TD;
 	analyze_output -.-> select_command;
 	answer_from_paused --> reminder_footer;
 	ask_dashboard_evidence --> save_session;
+	ask_vehicle_no --> save_session;
 	basic_troubleshooting --> save_session;
 	choose_workflow --> save_session;
 	clarify_node -.-> human_handoff;
@@ -92,6 +94,7 @@ graph TD;
 	query_classifier -.-> clarify_node;
 	query_classifier -.-> push_frame;
 	query_classifier -.-> rag_answer;
+	query_classifier -.-> show_device_commands;
 	rag_answer -.-> human_handoff;
 	rag_answer -.-> reminder_footer;
 	rag_answer -.-> save_session;
@@ -125,6 +128,8 @@ graph TD;
 	retry_gate -.-> save_session;
 	select_command -.-> human_handoff;
 	select_command -.-> present_command;
+	show_device_commands -.-> reminder_footer;
+	show_device_commands -.-> save_session;
 	stale_resume_handler -.-> resume_router;
 	stale_resume_handler -.-> save_session;
 	symptom_analyzer -.-> ask_vehicle_no;
@@ -134,7 +139,6 @@ graph TD;
 	validate_vehicle_no -.-> human_handoff;
 	validate_vehicle_no -.-> retry_gate;
 	validate_vehicle_no -.-> save_session;
-	ask_vehicle_no --> __end__;
 	save_session --> __end__;
 	fetch_vehicle_info -.-> fetch_vehicle_info;
 	classDef default fill:#f2f0ff,line-height:1.2

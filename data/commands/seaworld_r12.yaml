@@ -1,0 +1,139 @@
+device_type: Seaworld-R12
+aliases:
+- SeeWorld-R12
+- SeeWorld R12
+- Seaworld R12
+port: 5023
+configuration:
+  server: SERVER,0000,52.74.44.145,5023,0#
+  apn: APN,airteliot.com#
+  timezone: GMT,E,0,00#
+  timer: S106/R12
+  port: 5023
+commands:
+- id: status
+  order: 1
+  command: STATUS#
+  purpose: Check GPS fix, GSM signal, battery level and GPRS server connection status
+  how_to_send: Send this SMS from the registered SIM or send via web command terminal,
+    then attach a screenshot of the reply.
+  output_schema:
+    gps_fix:
+      type: string
+    gsm_signal:
+      type: integer
+    battery_voltage:
+      type: number
+    gprs_connected:
+      type: boolean
+    satellites:
+      type: integer
+  analysis:
+    expected_description: GPS fixed, GSM >= 3, GPRS connected, battery above 3.7V
+    llm_hint: Explain findings in plain language; never infer a missing field.
+    rules:
+    - field: gps_fix
+      condition: == invalid
+      finding: GPS has no valid fix
+      advice: Move the vehicle to an open area with a clear view of the sky, then
+        retry. If GPS remains invalid, ask an authorised technician to inspect the
+        antenna and installation.
+    - field: gps_fix
+      condition: == no
+      finding: GPS has no fix
+      advice: Move the vehicle to an open area with a clear view of the sky, then
+        retry. If GPS remains invalid, ask an authorised technician to inspect the
+        antenna and installation.
+    - field: satellites
+      condition: < 3
+      finding: Low satellite count
+      advice: Move the vehicle to an open area with a clear view of the sky and allow
+        time for the tracker to acquire satellites.
+    - field: gsm_signal
+      condition: < 2
+      finding: Weak GSM signal
+      advice: Move the vehicle to an area with stronger mobile coverage. If the signal
+        stays low, ask support to check the SIM/network.
+    - field: gprs_connected
+      condition: == false
+      finding: Device is not connected to the server
+      advice: The device may not be sending data over mobile internet. Ask the support
+        team to verify SIM data/APN settings before changing configuration.
+    - field: battery_voltage
+      condition: < 3.7
+      finding: Device supply/battery voltage is low
+      advice: Have an authorised technician inspect the device power supply and wiring.
+  next_if_inconclusive:
+  - param
+- id: param
+  order: 2
+  command: PARAM#
+  purpose: Check configured communication parameters, APN, server IP and port
+  how_to_send: Send this SMS from the registered SIM or send via web command terminal,
+    then attach a screenshot of the reply.
+  output_schema:
+    apn:
+      type: string
+    server:
+      type: string
+    port:
+      type: integer
+  analysis:
+    expected_description: APN/server parameters match the approved device configuration
+    llm_hint: Do not make configuration changes based on a guess; mismatches require
+      support review.
+    rules: []
+  next_if_inconclusive: []
+- id: server
+  order: 3
+  command: SERVER,0000,52.74.44.145,5023,0#
+  purpose: Configure device reporting server IP and port (5023)
+  how_to_send: Send this SMS from the registered SIM or command box to point tracker
+    to TrackoBit server.
+  output_schema:
+    response:
+      type: string
+  analysis:
+    expected_description: Device acknowledges server setting update
+    llm_hint: Verify device replies with confirmation.
+    rules: []
+  next_if_inconclusive: []
+- id: apn
+  order: 4
+  command: APN,airteliot.com#
+  purpose: Configure SIM APN for mobile GPRS data internet
+  how_to_send: Send this SMS to configure network APN on the device SIM.
+  output_schema:
+    response:
+      type: string
+  analysis:
+    expected_description: Device acknowledges APN update
+    llm_hint: Ensure SIM has active data plan matching this APN.
+    rules: []
+  next_if_inconclusive: []
+- id: timezone
+  order: 5
+  command: GMT,E,0,00#
+  purpose: Configure device time zone (GMT/UTC)
+  how_to_send: Send this SMS to set the tracker internal clock timezone.
+  output_schema:
+    response:
+      type: string
+  analysis:
+    expected_description: Device acknowledges timezone setting
+    llm_hint: Verify timezone confirmation reply.
+    rules: []
+  next_if_inconclusive: []
+- id: timer
+  order: 6
+  command: S106/R12
+  purpose: Configure device location packet upload timer / reporting interval
+  how_to_send: Send this SMS to set moving and stopped periodic upload frequency.
+  output_schema:
+    response:
+      type: string
+  analysis:
+    expected_description: Device acknowledges timer interval update
+    llm_hint: Verify timer update confirmation reply.
+    rules: []
+  next_if_inconclusive: []

@@ -6,7 +6,7 @@ from trackobit_assistant.schemas.models import Intent, IntentResult
 from trackobit_assistant.services.workflow_stack import summarize_for_prompt
 
 GREETINGS={'hi','hello','hey','good morning','good afternoon','good evening','thanks','thank you','thx','ok thanks','🙏','👍'}
-STATIC_WORDS=('how do i','how to','add vehicle','create vehicle','geofence','report','feature','pricing','subscription plan','export','configure','settings','policy','what is')
+STATIC_WORDS=('how do i','how to','add vehicle','create vehicle','geofence','report','feature','pricing','subscription plan','export','configure','settings','policy','what is','command','commands')
 ISSUE_WORDS=('not updating','not working','issue','problem','wrong location','gps','offline','no location','stopped','fault','error','device','vehicle')
 
 def _heuristic(state: dict[str, Any], settings) -> IntentResult:
@@ -24,7 +24,7 @@ def _heuristic(state: dict[str, Any], settings) -> IntentResult:
         if len(paused) > 1:
             return IntentResult(intent=Intent.AMBIGUOUS_TARGET, confidence=.93, is_follow_up=True)
         return IntentResult(intent=Intent.RESUME_REQUEST, confidence=.91, is_follow_up=True, target_frame_id=paused[-1].get('frame_id'))
-    static_side_question=any(w in low for w in ('geofence','add vehicle','how do i','how to','pricing','subscription','report','feature','export','configure','settings'))
+    static_side_question=any(w in low for w in ('geofence','add vehicle','how do i','how to','pricing','subscription','report','feature','export','configure','settings','command','commands'))
     if awaiting not in {'none',None,''} and state.get('active_frame_id') and static_side_question and not (awaiting in {'command_screenshot','command_screenshot_text'} and state.get('screenshot_path')):
         return IntentResult(intent=Intent.SIDE_QUESTION,confidence=.88)
     if awaiting not in {'none',None,''} and state.get('active_frame_id') and low in {'continue','resume','ok','okay','i ran it','run it again','repeat that step'}:
@@ -51,7 +51,7 @@ def _heuristic(state: dict[str, Any], settings) -> IntentResult:
     if any(x in low for x in ('what was the command','which command','command again','what did you ask me to send')) and (paused or state.get('current_command')):
         return IntentResult(intent=Intent.REFERENCES_PAUSED,confidence=.9,is_follow_up=True,target_frame_id=(paused[-1].get('frame_id') if paused else state.get('active_frame_id')))
     if state.get('awaiting') not in {'none',None,''} and state.get('active_frame_id') and text:
-        if any(x in low for x in ('geofence','add vehicle','how do i','pricing','subscription','report','feature')):
+        if any(x in low for x in ('geofence','add vehicle','how do i','pricing','subscription','report','feature','command','commands')):
             return IntentResult(intent=Intent.SIDE_QUESTION,confidence=.84)
         return IntentResult(intent=Intent.ANSWERS_PENDING,confidence=.76,is_follow_up=True)
     if any(w in low for w in ISSUE_WORDS) or len(text) > 18:

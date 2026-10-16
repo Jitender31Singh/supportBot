@@ -48,11 +48,23 @@ class SymptomsResult(BaseModel):
 class QueryKind(StrEnum):
     STATIC_INFO = 'static_info'
     DIAGNOSIS = 'diagnosis'
+    DEVICE_COMMANDS = 'device_commands'
 
 class QueryClassification(BaseModel):
     kind: QueryKind = QueryKind.DIAGNOSIS
     confidence: float = Field(default=0.5, ge=0, le=1)
     reason: str = ''
+    device_type: str | None = None
+
+class ResolutionVerdict(StrEnum):
+    RESOLVED = 'resolved'
+    NOT_RESOLVED = 'not_resolved'
+    UNCLEAR = 'unclear'
+
+class ResolutionResult(BaseModel):
+    verdict: ResolutionVerdict = ResolutionVerdict.UNCLEAR
+    confidence: float = Field(default=0.5, ge=0, le=1)
+    explanation: str = ''
 
 class FaultCategory(StrEnum):
     ACCOUNT_ISSUE = 'account_issue'

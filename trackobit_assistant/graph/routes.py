@@ -26,8 +26,20 @@ def route_after_query(state):
     if conf < thresh:
         logger.info(f"[ROUTER: route_after_query] query_confidence {conf:.2f} < threshold {thresh:.2f} -> routing to 'clarify_node'", extra={'session_id': session_id})
         return 'clarify_node'
-    target = 'rag_answer' if kind == 'static_info' else 'push_frame'
+    if kind == 'device_commands':
+        target = 'show_device_commands'
+    elif kind == 'static_info':
+        target = 'rag_answer'
+    else:
+        target = 'push_frame'
     logger.info(f"[ROUTER: route_after_query] query_kind='{kind}' (conf={conf:.2f}) -> routing to '{target}'", extra={'session_id': session_id})
+    return target
+
+def route_after_device_commands(state):
+    session_id = state.get('session_id', '-')
+    paused = any(f.get('status') in {'paused', 'stale'} for f in (state.get('workflow_stack') or []))
+    target = 'reminder_footer' if paused else 'save_session'
+    logger.info(f"[ROUTER: route_after_device_commands] paused={paused} -> routing to '{target}'", extra={'session_id': session_id})
     return target
 
 def route_after_rag(state):

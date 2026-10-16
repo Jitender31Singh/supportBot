@@ -38,6 +38,7 @@ from trackobit_assistant.nodes.workflow_control.reminder_footer import make_node
 from trackobit_assistant.nodes.workflow_control.complete_frame import make_node as complete_frame
 from trackobit_assistant.nodes.workflow_control.resume_router import make_node as resume_router
 from trackobit_assistant.nodes.troubleshooting.update_dashboard_evidence import make_node as update_dashboard_evidence
+from trackobit_assistant.nodes.knowledge.show_device_commands import make_node as show_device_commands
 
 
 import logging
@@ -91,6 +92,7 @@ def create_node_registry(runtime: Runtime):
       'resume_chosen_workflow':resolve_workflow_choice(runtime),'answer_from_paused':answer_from_paused(runtime),
       'reminder_footer':reminder_footer(runtime),'complete_frame':complete_frame(runtime),
       'update_dashboard_evidence':update_dashboard_evidence(runtime),
+      'show_device_commands':show_device_commands(runtime),
       'resume_router':resume_router(runtime),
       'save_session':save_session(runtime),
     }
