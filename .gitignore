@@ -12,3 +12,7 @@ data/faiss/
 !data/knowledge_base/.gitkeep
 !data/commands/*.yaml
 .DS_Store
+
+/data/*.log
+data/assistant.log
+.idea/*
