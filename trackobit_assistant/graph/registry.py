@@ -38,7 +38,9 @@ from trackobit_assistant.nodes.workflow_control.reminder_footer import make_node
 from trackobit_assistant.nodes.workflow_control.complete_frame import make_node as complete_frame
 from trackobit_assistant.nodes.workflow_control.resume_router import make_node as resume_router
 from trackobit_assistant.nodes.troubleshooting.update_dashboard_evidence import make_node as update_dashboard_evidence
+from trackobit_assistant.nodes.troubleshooting.check_config import make_node as check_config
 from trackobit_assistant.nodes.knowledge.show_device_commands import make_node as show_device_commands
+from trackobit_assistant.nodes.session.recap_node import make_node as recap_node
 
 
 import logging
@@ -81,7 +83,7 @@ def create_node_registry(runtime: Runtime):
       'load_session':load_session(runtime),'intent_parser':intent_parser(runtime),'greeting_node':greeting_node(runtime),
       'clarify_node':clarify_node(runtime),'query_classifier':query_classifier(runtime),'rag_answer':rag_answer(runtime),
       'symptom_analyzer':symptom_analyzer(runtime),'ask_vehicle_no':ask_vehicle_no(runtime),'validate_vehicle_no':validate_vehicle_no(runtime),
-      'fetch_vehicle_info':fetch_vehicle_info(runtime),'retry_gate':retry_gate(runtime),'fault_classifier':fault_classifier(runtime),
+      'fetch_vehicle_info':fetch_vehicle_info(runtime),'check_config':check_config(runtime),'retry_gate':retry_gate(runtime),'fault_classifier':fault_classifier(runtime),
       'account_advice':account_advice(runtime),'create_bug_ticket':create_bug_ticket(runtime),'notify_user':notify_user(runtime),
       'basic_troubleshooting':basic_troubleshooting(runtime),'recheck_vehicle_info':recheck_vehicle_info(runtime),
       'ask_dashboard_evidence':ask_dashboard_evidence(runtime),'select_command':select_command(runtime),'present_command':present_command(runtime),
@@ -93,6 +95,7 @@ def create_node_registry(runtime: Runtime):
       'reminder_footer':reminder_footer(runtime),'complete_frame':complete_frame(runtime),
       'update_dashboard_evidence':update_dashboard_evidence(runtime),
       'show_device_commands':show_device_commands(runtime),
+      'recap_node':recap_node(runtime),
       'resume_router':resume_router(runtime),
       'save_session':save_session(runtime),
     }

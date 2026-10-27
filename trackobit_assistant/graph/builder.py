@@ -15,29 +15,33 @@ def build_graph(runtime: Runtime):
     graph.add_conditional_edges('intent_parser',routes.route_intent,{
       'greeting_node':'greeting_node','clarify_node':'clarify_node','pause_workflow':'pause_workflow','resume_workflow':'resume_workflow',
       'answer_from_paused':'answer_from_paused','choose_workflow':'choose_workflow','resolution_handler':'resolution_handler',
-      'resume_router':'resume_router','query_classifier':'query_classifier'})
+      'resume_router':'resume_router','query_classifier':'query_classifier','recap_node':'recap_node'})
     graph.add_conditional_edges('resume_router',lambda s:s.get('resume_target','clarify_node'),{
       'validate_vehicle_no':'validate_vehicle_no','ask_vehicle_no':'ask_vehicle_no','update_dashboard_evidence':'update_dashboard_evidence',
       'ask_dashboard_evidence':'ask_dashboard_evidence','recheck_vehicle_info':'recheck_vehicle_info','basic_troubleshooting':'basic_troubleshooting',
       'process_screenshot':'process_screenshot','present_command':'present_command','resolution_handler':'resolution_handler',
       'resolution_check':'resolution_check','resume_chosen_workflow':'resume_chosen_workflow','stale_resume_handler':'stale_resume_handler',
-      'choose_workflow':'choose_workflow','clarify_node':'clarify_node'})
+      'choose_workflow':'choose_workflow','check_config':'check_config','clarify_node':'clarify_node'})
     graph.add_conditional_edges('query_classifier',routes.route_after_query,{
-      'rag_answer':'rag_answer','push_frame':'push_frame','clarify_node':'clarify_node','show_device_commands':'show_device_commands'})
+      'rag_answer':'rag_answer','push_frame':'push_frame','clarify_node':'clarify_node','show_device_commands':'show_device_commands','recap_node':'recap_node'})
+    graph.add_conditional_edges('recap_node',routes.route_after_recap,{
+      'reminder_footer':'reminder_footer','save_session':'save_session'})
     graph.add_conditional_edges('show_device_commands',routes.route_after_device_commands,{
       'reminder_footer':'reminder_footer','save_session':'save_session'})
     graph.add_conditional_edges('rag_answer',routes.route_after_rag,{
       'human_handoff':'human_handoff','reminder_footer':'reminder_footer','save_session':'save_session'})
     graph.add_edge('push_frame','symptom_analyzer')
     graph.add_conditional_edges('symptom_analyzer',routes.route_after_symptoms,{
-      'ask_vehicle_no':'ask_vehicle_no','validate_vehicle_no':'validate_vehicle_no'})
+      'ask_vehicle_no':'ask_vehicle_no','validate_vehicle_no':'validate_vehicle_no','save_session':'save_session'})
     graph.add_edge('ask_vehicle_no','save_session')
     graph.add_conditional_edges('validate_vehicle_no',routes.route_after_validate,{
       'fetch_vehicle_info':'fetch_vehicle_info','human_handoff':'human_handoff','retry_gate':'retry_gate','save_session':'save_session'})
     graph.add_conditional_edges('retry_gate',routes.route_after_retry_gate,{
       'human_handoff':'human_handoff','save_session':'save_session'})
     graph.add_conditional_edges('fetch_vehicle_info',routes.route_after_fetch,{
-      'fault_classifier':'fault_classifier','fetch_vehicle_info':'fetch_vehicle_info','human_handoff':'human_handoff'})
+      'check_config':'check_config','human_handoff':'human_handoff','save_session':'save_session'})
+    graph.add_conditional_edges('check_config',routes.route_after_check_config,{
+      'save_session':'save_session','fault_classifier':'fault_classifier','human_handoff':'human_handoff'})
     graph.add_conditional_edges('fault_classifier',routes.route_after_fault,{
       'account_advice':'account_advice','create_bug_ticket':'create_bug_ticket','basic_troubleshooting':'basic_troubleshooting',
       'select_command':'select_command','ask_dashboard_evidence':'ask_dashboard_evidence','resolution_check':'resolution_check'})

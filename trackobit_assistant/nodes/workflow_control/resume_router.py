@@ -18,6 +18,9 @@ def _resume_target(state):
             'troubleshoot_result': 'basic_troubleshooting', 'command_screenshot': 'present_command',
             'command_screenshot_text': 'present_command', 'resolution_confirm': 'resolution_check',
             'workflow_choice': 'choose_workflow',
+            'config_port_confirm': 'check_config', 'config_device_type_confirm': 'check_config',
+            'subscription_renewal_confirm': 'check_config', 'device_activation_confirm': 'check_config',
+            'config_move_vehicle': 'check_config',
         }.get(awaiting, 'clarify_node')
     else:
         target = {
@@ -25,6 +28,9 @@ def _resume_target(state):
             'troubleshoot_result': 'recheck_vehicle_info', 'command_screenshot': 'process_screenshot',
             'command_screenshot_text': 'process_screenshot', 'resolution_confirm': 'resolution_handler',
             'workflow_choice': 'resume_chosen_workflow', 'stale_resume_confirm': 'stale_resume_handler',
+            'config_port_confirm': 'check_config', 'config_device_type_confirm': 'check_config',
+            'subscription_renewal_confirm': 'check_config', 'device_activation_confirm': 'check_config',
+            'config_move_vehicle': 'check_config',
         }.get(awaiting, 'clarify_node')
 
     if target == 'clarify_node':

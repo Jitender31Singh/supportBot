@@ -1,4 +1,5 @@
 import logging
+from trackobit_assistant.nodes.session.recap_node import is_recap_query
 
 logger = logging.getLogger('trackobit_assistant.routes')
 
@@ -6,6 +7,10 @@ def route_intent(state):
     intent = state.get('intent', 'unclear')
     session_id = state.get('session_id', '-')
     awaiting = state.get('awaiting', 'none')
+    user_msg = state.get('last_user_message', '')
+    if intent == 'recap_conversation' or is_recap_query(user_msg):
+        logger.info(f"[ROUTER: route_intent] Recap query detected -> routing to 'recap_node'", extra={'session_id': session_id})
+        return 'recap_node'
     if intent in {'answers_pending', 'follow_up'} and awaiting in {'none', None, ''}:
         logger.warning(f"[ROUTER: route_intent] intent='{intent}' but awaiting is '{awaiting}'; re-routing to 'query_classifier'", extra={'session_id': session_id})
         return 'query_classifier'
@@ -13,7 +18,7 @@ def route_intent(state):
       'greeting': 'greeting_node', 'smalltalk': 'greeting_node', 'unclear': 'clarify_node',
       'side_question': 'pause_workflow', 'resume_request': 'resume_workflow', 'references_paused': 'answer_from_paused',
       'ambiguous_target': 'choose_workflow', 'resolution_reply': 'resolution_handler',
-      'answers_pending': 'resume_router', 'follow_up': 'resume_router', 'new_query': 'query_classifier', 'new_workflow': 'pause_workflow',
+      'answers_pending': 'resume_router', 'follow_up': 'resume_router', 'new_query': 'query_classifier', 'new_workflow': 'pause_workflow', 'recap_conversation': 'recap_node',
     }.get(intent, 'query_classifier')
     logger.info(f"[ROUTER: route_intent] intent='{intent}' (conf={state.get('intent_confidence')}) -> routing to '{target}'", extra={'session_id': session_id})
     return target
@@ -26,13 +31,22 @@ def route_after_query(state):
     if conf < thresh:
         logger.info(f"[ROUTER: route_after_query] query_confidence {conf:.2f} < threshold {thresh:.2f} -> routing to 'clarify_node'", extra={'session_id': session_id})
         return 'clarify_node'
-    if kind == 'device_commands':
+    if kind == 'recap_conversation':
+        target = 'recap_node'
+    elif kind == 'device_commands':
         target = 'show_device_commands'
     elif kind == 'static_info':
         target = 'rag_answer'
     else:
         target = 'push_frame'
     logger.info(f"[ROUTER: route_after_query] query_kind='{kind}' (conf={conf:.2f}) -> routing to '{target}'", extra={'session_id': session_id})
+    return target
+
+def route_after_recap(state):
+    session_id = state.get('session_id', '-')
+    paused = any(f.get('status') in {'paused', 'stale'} for f in (state.get('workflow_stack') or []))
+    target = 'reminder_footer' if paused else 'save_session'
+    logger.info(f"[ROUTER: route_after_recap] paused={paused} -> routing to '{target}'", extra={'session_id': session_id})
     return target
 
 def route_after_device_commands(state):
@@ -57,6 +71,9 @@ def route_after_rag(state):
 
 def route_after_symptoms(state):
     session_id = state.get('session_id', '-')
+    if state.get('known_bug') and not state.get('vehicle_no'):
+        logger.info(f"[ROUTER: route_after_symptoms] known_bug detected without vehicle -> routing to 'save_session'", extra={'session_id': session_id})
+        return 'save_session'
     v = state.get('vehicle_no')
     target = 'validate_vehicle_no' if v else 'ask_vehicle_no'
     logger.info(f"[ROUTER: route_after_symptoms] vehicle_no='{v}' -> routing to '{target}'", extra={'session_id': session_id})
@@ -64,6 +81,9 @@ def route_after_symptoms(state):
 
 def route_after_validate(state):
     session_id = state.get('session_id', '-')
+    if state.get('known_bug'):
+        logger.info(f"[ROUTER: route_after_validate] known_bug detected -> routing to 'save_session'", extra={'session_id': session_id})
+        return 'save_session'
     valid = state.get('vehicle_no_valid')
     exhausted = state.get('retry_exhausted')
     target = 'fetch_vehicle_info' if valid else ('human_handoff' if exhausted else 'retry_gate')
@@ -73,8 +93,27 @@ def route_after_validate(state):
 def route_after_fetch(state):
     session_id = state.get('session_id', '-')
     api_ok = state.get('api_ok')
-    target = 'fault_classifier' if api_ok else 'human_handoff'
-    logger.info(f"[ROUTER: route_after_fetch] api_ok={api_ok} (error='{state.get('api_error')}') -> routing to '{target}'", extra={'session_id': session_id})
+    api_error = state.get('api_error')
+    if state.get('vehicle_not_found') or api_error == 'vehicle_not_found':
+        logger.info(f"[ROUTER: route_after_fetch] vehicle_not_found -> routing to 'save_session'", extra={'session_id': session_id})
+        return 'save_session'
+    target = 'check_config' if api_ok else 'human_handoff'
+    logger.info(f"[ROUTER: route_after_fetch] api_ok={api_ok} (error='{api_error}') -> routing to '{target}'", extra={'session_id': session_id})
+    return target
+
+def route_after_check_config(state):
+    session_id = state.get('session_id', '-')
+    step = state.get('current_step')
+    awaiting = state.get('awaiting', 'none')
+    if step == 'human_handoff' or state.get('handoff_reason'):
+        target = 'human_handoff'
+    elif awaiting != 'none':
+        target = 'save_session'
+    elif step == 'fault_classifier':
+        target = 'fault_classifier'
+    else:
+        target = 'save_session'
+    logger.info(f"[ROUTER: route_after_check_config] step='{step}', awaiting='{awaiting}' -> routing to '{target}'", extra={'session_id': session_id})
     return target
 
 def route_after_fault(state):
@@ -121,7 +160,9 @@ def route_resume(state):
     target = {'vehicle_no': 'validate_vehicle_no', 'dashboard_evidence': 'update_dashboard_evidence',
         'troubleshoot_result': 'recheck_vehicle_info', 'command_screenshot': 'process_screenshot',
         'command_screenshot_text': 'process_screenshot', 'resolution_confirm': 'resolution_handler',
-        'workflow_choice': 'resume_chosen_workflow'}.get(awaiting, 'clarify_node')
+        'workflow_choice': 'resume_chosen_workflow',
+        'config_port_confirm': 'check_config',
+        'config_device_type_confirm': 'check_config'}.get(awaiting, 'clarify_node')
     logger.info(f"[ROUTER: route_resume] awaiting='{awaiting}' -> routing to '{target}'", extra={'session_id': session_id})
     return target
 
@@ -172,4 +213,3 @@ def route_after_software_ticket(state):
     target = 'human_handoff' if state.get('handoff_reason') == 'software_ticket_create_failed' else 'notify_user'
     logger.info(f"[ROUTER: route_after_software_ticket] handoff_reason='{state.get('handoff_reason')}' -> routing to '{target}'", extra={'session_id': session_id})
     return target
-

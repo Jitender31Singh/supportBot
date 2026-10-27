@@ -53,6 +53,7 @@ class AssistantState(TypedDict, total=False):
     vehicle_no_valid: bool
     api_ok: bool | None
     api_error: str | None
+    vehicle_not_found: bool
     fault_confidence: float | None
     fault_needs_user_input: bool
     command_available: bool
@@ -68,3 +69,11 @@ class AssistantState(TypedDict, total=False):
     workflow_choice_valid: bool
     intent_retry_exhausted: bool
     resume_represent_step: bool
+    config_port_status: str | None
+    config_device_type_status: str | None
+    device_activation_status: str | None
+    subscription_status: str | None
+    lu_status: str | None
+    since_status: str | None
+    stale_diagnostics: dict[str, Any] | None
+    config_step: str | None

@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     ticket_api_url: str | None = None
     ticket_api_key: str | None = None
     ticket_api_timeout_seconds: float = 10.0
-    vehicle_no_regex: str = r'^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{4}$'
+    vehicle_no_regex: str = r'^(?:[A-Z]{2}\d{1,2}[A-Z]{0,4}\d{4}|\d{2}BH\d{4}[A-Z]{1,2})$'
     intent_confidence_threshold: float = 0.65
     query_confidence_threshold: float = 0.60
     rag_confidence_threshold: float = 0.60
@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     app_timezone: str = 'Asia/Kolkata'
     assign_to_support_user: str = 'trackobit-support'
     prompt_versions: str = ''
+    pinecone_api_key: str | None = None
+    pinecone_index_name: str = 'manual-bugs'
 
     def ensure_directories(self) -> None:
         for path in (self.data_dir, self.session_dir, self.upload_dir, self.knowledge_dir, self.commands_dir):

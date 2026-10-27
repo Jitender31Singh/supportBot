@@ -29,12 +29,18 @@ def classify_fault(snapshot: dict[str, Any] | None, dashboard_evidence: str | No
     dashboard = (dashboard_evidence or '').casefold()
     if minutes is not None and minutes <= freshness_threshold_minutes:
         evidence.append(f'API has a fresh update ({minutes:.1f} minutes ago)')
-        if any(word in dashboard for word in ('stale', 'wrong', 'not updating', 'old location', 'dashboard')):
-            evidence.append('User reports dashboard/app data is stale or incorrect')
+        software_terms = (
+            'stale', 'wrong', 'not updating', 'old location', 'dashboard', 'buffer', 'buffering',
+            'lag', 'lagging', 'delay', 'delayed', 'slow', 'freeze', 'freezing', 'stuck',
+            'loading', 'jumping', 'glitch', 'unreachable', 'app', 'portal', 'web', 'screen', 'ui', 'map', 'not showing'
+        )
+        if any(word in dashboard for word in software_terms):
+            evidence.append('User reports dashboard/app data is stale, buffering, or incorrect despite live telemetry')
             return FaultResult(category=FaultCategory.SOFTWARE_ISSUE, confidence=0.88, evidence=evidence)
-        if dashboard_evidence:
-            return FaultResult(category=FaultCategory.NO_ISSUE, confidence=0.65, evidence=evidence + ['Dashboard evidence needs review'])
-        return FaultResult(category=FaultCategory.NEED_MORE_INFO, confidence=0.55, evidence=evidence, needs_user_input=True)
+        if not dashboard_evidence or any(p in dashboard for p in ('check', 'status', 'config', 'details', 'info', 'view', 'look', 'read')):
+            return FaultResult(category=FaultCategory.NO_ISSUE, confidence=0.70, evidence=evidence + ['Configuration and telemetry verified'])
+        evidence.append(f'Unresolved user observation on live device: {dashboard[:80]}')
+        return FaultResult(category=FaultCategory.SOFTWARE_ISSUE, confidence=0.75, evidence=evidence)
     if ('ignition off' in state or snapshot.get('parked') is True) and (minutes is None or minutes > freshness_threshold_minutes):
         evidence.append('Last status says ignition off/parked; a stale update alone does not prove a device fault')
         return FaultResult(category=FaultCategory.PARKED_IGNITION_OFF, confidence=0.84, evidence=evidence, needs_user_input=True)

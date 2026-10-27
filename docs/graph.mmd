@@ -15,6 +15,7 @@ graph TD;
 	ask_vehicle_no(ask_vehicle_no)
 	validate_vehicle_no(validate_vehicle_no)
 	fetch_vehicle_info(fetch_vehicle_info)
+	check_config(check_config)
 	retry_gate(retry_gate)
 	fault_classifier(fault_classifier)
 	account_advice(account_advice)
@@ -43,6 +44,7 @@ graph TD;
 	complete_frame(complete_frame)
 	update_dashboard_evidence(update_dashboard_evidence)
 	show_device_commands(show_device_commands)
+	recap_node(recap_node)
 	resume_router(resume_router)
 	save_session(save_session)
 	__end__([<p>__end__</p>]):::last
@@ -55,6 +57,9 @@ graph TD;
 	ask_dashboard_evidence --> save_session;
 	ask_vehicle_no --> save_session;
 	basic_troubleshooting --> save_session;
+	check_config -.-> fault_classifier;
+	check_config -.-> human_handoff;
+	check_config -.-> save_session;
 	choose_workflow --> save_session;
 	clarify_node -.-> human_handoff;
 	clarify_node -.-> save_session;
@@ -70,8 +75,9 @@ graph TD;
 	fault_classifier -.-> create_bug_ticket;
 	fault_classifier -.-> resolution_check;
 	fault_classifier -.-> select_command;
-	fetch_vehicle_info -.-> fault_classifier;
+	fetch_vehicle_info -.-> check_config;
 	fetch_vehicle_info -.-> human_handoff;
+	fetch_vehicle_info -.-> save_session;
 	greeting_node --> save_session;
 	human_handoff --> complete_frame;
 	intent_parser -.-> answer_from_paused;
@@ -80,6 +86,7 @@ graph TD;
 	intent_parser -.-> greeting_node;
 	intent_parser -.-> pause_workflow;
 	intent_parser -.-> query_classifier;
+	intent_parser -.-> recap_node;
 	intent_parser -.-> resolution_handler;
 	intent_parser -.-> resume_router;
 	intent_parser -.-> resume_workflow;
@@ -94,10 +101,13 @@ graph TD;
 	query_classifier -.-> clarify_node;
 	query_classifier -.-> push_frame;
 	query_classifier -.-> rag_answer;
+	query_classifier -.-> recap_node;
 	query_classifier -.-> show_device_commands;
 	rag_answer -.-> human_handoff;
 	rag_answer -.-> reminder_footer;
 	rag_answer -.-> save_session;
+	recap_node -.-> reminder_footer;
+	recap_node -.-> save_session;
 	recheck_vehicle_info --> fetch_vehicle_info;
 	reminder_footer --> save_session;
 	resolution_check --> save_session;
@@ -111,6 +121,7 @@ graph TD;
 	resume_router -.-> ask_dashboard_evidence;
 	resume_router -.-> ask_vehicle_no;
 	resume_router -.-> basic_troubleshooting;
+	resume_router -.-> check_config;
 	resume_router -.-> choose_workflow;
 	resume_router -.-> clarify_node;
 	resume_router -.-> present_command;
@@ -133,6 +144,7 @@ graph TD;
 	stale_resume_handler -.-> resume_router;
 	stale_resume_handler -.-> save_session;
 	symptom_analyzer -.-> ask_vehicle_no;
+	symptom_analyzer -.-> save_session;
 	symptom_analyzer -.-> validate_vehicle_no;
 	update_dashboard_evidence --> fault_classifier;
 	validate_vehicle_no -.-> fetch_vehicle_info;
@@ -140,7 +152,6 @@ graph TD;
 	validate_vehicle_no -.-> retry_gate;
 	validate_vehicle_no -.-> save_session;
 	save_session --> __end__;
-	fetch_vehicle_info -.-> fetch_vehicle_info;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
 	classDef last fill:#bfb6fc

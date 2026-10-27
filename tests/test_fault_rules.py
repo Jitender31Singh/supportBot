@@ -16,3 +16,7 @@ def test_weak_gsm_is_hardware_issue():
 def test_fresh_api_and_stale_dashboard_is_software_issue():
     result=classify_fault({'minutes_since_last_update':2,'vehicle_status':'Active','device_status':'Active'},'dashboard shows stale location')
     assert result.category == FaultCategory.SOFTWARE_ISSUE
+
+def test_fresh_api_and_buffering_is_software_issue():
+    result = classify_fault({'minutes_since_last_update': 0.1, 'vehicle_status': 'Active', 'device_status': 'Active'}, 'device is buffering')
+    assert result.category == FaultCategory.SOFTWARE_ISSUE

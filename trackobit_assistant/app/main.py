@@ -17,6 +17,7 @@ from trackobit_assistant.adapters.vehicle_api import HttpVehicleApiClient
 from trackobit_assistant.adapters.ticket_client import HttpTicketClient, LoggingTicketClient
 from trackobit_assistant.adapters.command_registry import YamlCommandRegistry
 from trackobit_assistant.adapters.knowledge_base import FileKnowledgeBase
+from trackobit_assistant.adapters.pinecone_bug_store import PineconeBugStore
 from trackobit_assistant.graph.runtime import Runtime
 from trackobit_assistant.graph.builder import build_graph
 from trackobit_assistant.llm.factory import create_chat_model
@@ -71,8 +72,16 @@ llm=create_chat_model(settings)
 vision_llm=create_chat_model(settings,vision=True)
 prompt_repo=PromptRepository(Path('prompts'), version_config=settings.prompt_versions)
 message_renderer=MessageRenderer(Path('templates/messages'))
+bug_store = None
+if settings.pinecone_api_key:
+    try:
+        bug_store = PineconeBugStore(index_name=settings.pinecone_index_name, api_key=settings.pinecone_api_key)
+        logger.info(f"PineconeBugStore initialized on index '{bug_store.index_name}'")
+    except Exception as exc:
+        logger.warning(f"Could not initialize PineconeBugStore: {exc}")
+
 runtime=Runtime(settings=settings,session_store=store,vehicle_client=vehicle_client,ticket_client=ticket_client,
-                command_registry=command_registry,knowledge_base=knowledge_base,llm=llm,vision_llm=vision_llm,prompts=prompt_repo,messages=message_renderer)
+                command_registry=command_registry,knowledge_base=knowledge_base,llm=llm,vision_llm=vision_llm,prompts=prompt_repo,messages=message_renderer,bug_store=bug_store)
 graph=build_graph(runtime)
 
 app=FastAPI(title=settings.app_name,version='0.1.0',description='Session-based TrackoBit support assistant API')
@@ -321,3 +330,66 @@ def close_session(session_id: str):
     if not record or record.get('session_id') != session_id: raise HTTPException(status_code=404,detail='Session not found')
     record['status']='closed'; store._write(record)
     return {'session_id':session_id,'status':'closed'}
+
+
+class BugItem(BaseModel):
+    bug_id: str
+    title: str
+    symptoms: str
+    workaround: str = ""
+    eta: str = ""
+    severity: str = "Medium"
+    status: str = "active"
+
+
+class BugSearchRequest(BaseModel):
+    query: str
+    min_similarity: float = 0.75
+
+
+@app.get('/bugs')
+def get_bugs(status: str | None = None):
+    if not bug_store:
+        return {'bugs': []}
+    return {'bugs': bug_store.list_bugs(status=status)}
+
+
+@app.post('/bugs')
+def add_or_update_bug(payload: BugItem):
+    if not bug_store:
+        raise HTTPException(status_code=503, detail="PineconeBugStore is not configured or available.")
+    try:
+        bug_id = bug_store.add_bug(
+            bug_id=payload.bug_id,
+            title=payload.title,
+            symptoms=payload.symptoms,
+            workaround=payload.workaround,
+            eta=payload.eta,
+            severity=payload.severity,
+            status=payload.status,
+        )
+        return {'status': 'success', 'bug_id': bug_id, 'message': f"Bug {bug_id} saved to Pinecone."}
+    except Exception as exc:
+        logger.error(f"Failed to add bug to Pinecone: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.delete('/bugs/{bug_id}')
+def delete_bug(bug_id: str):
+    if not bug_store:
+        raise HTTPException(status_code=503, detail="PineconeBugStore is not configured or available.")
+    try:
+        bug_store.delete_bug(bug_id)
+        return {'status': 'success', 'bug_id': bug_id, 'message': f"Bug {bug_id} deleted."}
+    except Exception as exc:
+        logger.error(f"Failed to delete bug from Pinecone: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post('/bugs/search')
+def search_bug(payload: BugSearchRequest):
+    if not bug_store:
+        raise HTTPException(status_code=503, detail="PineconeBugStore is not configured or available.")
+    match = bug_store.search_active_bug(payload.query, min_similarity=payload.min_similarity, llm=llm)
+    return {'match': match}
+

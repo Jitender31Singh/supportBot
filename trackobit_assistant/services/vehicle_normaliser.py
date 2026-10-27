@@ -1,7 +1,37 @@
+import re
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 from trackobit_assistant.schemas.models import VehicleSnapshot
+
+# Comprehensive Indian vehicle registration number search pattern
+# Standard: State (2 letters) + District (1-2 digits) + optional series/category (0-4 letters) + Number (4 digits)
+# BH series: Year (2 digits) + BH + Number (4 digits) + series (1-2 letters)
+VEHICLE_NO_SEARCH_PATTERN = re.compile(
+    r'(?i)\b(?:'
+    r'[A-Z]{2}\s*[- ]?\d{1,2}(?:\s*[- ]?[A-Z]+)*\s*[- ]?\d{4}'
+    r'|'
+    r'\d{2}\s*[- ]?BH\s*[- ]?\d{4}\s*[- ]?[A-Z]{1,2}'
+    r')\b'
+)
+
+VEHICLE_NO_NORMALIZED_PATTERN = re.compile(
+    r'^(?:[A-Z]{2}\d{1,2}[A-Z]{0,4}\d{4}|\d{2}BH\d{4}[A-Z]{1,2})$'
+)
+
+def extract_vehicle_no(text: str | None) -> str | None:
+    """Extract and normalize a vehicle registration number from free text."""
+    if not text:
+        return None
+    match = VEHICLE_NO_SEARCH_PATTERN.search(str(text))
+    if match:
+        normalized = re.sub(r'[\s-]', '', match.group(0)).upper()
+        if VEHICLE_NO_NORMALIZED_PATTERN.fullmatch(normalized):
+            return normalized
+    cleaned = re.sub(r'[\s-]', '', str(text)).upper()
+    if VEHICLE_NO_NORMALIZED_PATTERN.fullmatch(cleaned):
+        return cleaned
+    return None
 
 def _parse_date(value: Any, timezone_name: str, fmt: str = '%d/%m/%Y %H:%M:%S') -> datetime | None:
     if not value: return None
@@ -18,6 +48,10 @@ def normalise_vehicle_payload(payload: dict[str, Any], fallback_vehicle_no: str,
     now = datetime.now(ZoneInfo(timezone_name))
     minutes = (now - last_update.astimezone(ZoneInfo(timezone_name))).total_seconds() / 60 if last_update else None
     due = _parse_date(data.get('subscriptionDue') or data.get('subscription_due'), timezone_name, '%d/%m/%Y')
+    since = _parse_date(data.get('since'), timezone_name)
+    hours_since = (now - since.astimezone(ZoneInfo(timezone_name))).total_seconds() / 3600.0 if since else None
+    days_since = hours_since / 24.0 if hours_since is not None else None
+    port = data.get('port')
     return VehicleSnapshot(
         vehicle_no=str(data.get('vehicleNo') or data.get('vehicle_no') or fallback_vehicle_no).replace(' ', '').upper(),
         device_type=data.get('deviceType') or data.get('device_type'), vehicle_type=data.get('vehicleType') or data.get('vehicle_type'),
@@ -27,5 +61,7 @@ def normalise_vehicle_payload(payload: dict[str, Any], fallback_vehicle_no: str,
         logger=data.get('logger'), satellites=meta.get('satellites'), battery_connected=meta.get('batteryConnected', meta.get('battery_connected')),
         battery=meta.get('battery'), gsm_signals=meta.get('gsmSignals', meta.get('gsm_signals')),
         subscription_due=due, imei=data.get('imei'), sim_no=data.get('simNo') or data.get('sim_no'),
-        operator=data.get('operator'), address=data.get('address'), raw_payload=payload,
+        operator=data.get('operator'), address=data.get('address'),
+        port=port, since=since, hours_since_status=hours_since, days_since_status=days_since,
+        raw_payload=payload,
     )

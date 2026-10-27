@@ -23,7 +23,7 @@ def _content(message: Any) -> str:
 
 def update_conversation_summary(
     messages: list[Any], previous_summary: str = '', summarized_count: int = 0,
-    *, keep_recent: int = 10, max_chars: int = 1800,
+    *, keep_recent: int = 15, max_chars: int = 1800,
 ) -> tuple[str, int]:
     """Summarize only newly old messages, leaving the last ``keep_recent`` untouched.
 

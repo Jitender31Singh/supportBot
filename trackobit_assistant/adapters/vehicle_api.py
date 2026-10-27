@@ -4,6 +4,12 @@ from trackobit_assistant.config.settings import Settings
 from trackobit_assistant.schemas.models import VehicleSnapshot
 from trackobit_assistant.services.vehicle_normaliser import normalise_vehicle_payload
 
+
+class VehicleNotFoundError(Exception):
+    """Raised when a vehicle registration number does not exist or is not active in the system."""
+    pass
+
+
 SAMPLE_PAYLOAD = {
   'status':'OK','code':200,'data': {
     'ouid':'6a95569b232ba163cdceded9','state':'Ignition off','vehicleNo':'HR85G2799',
@@ -25,15 +31,23 @@ class MockVehicleApiClient:
         self.timezone_name = timezone_name
 
     def get_vehicle(self, vehicle_no: str) -> VehicleSnapshot:
+        v_upper = str(vehicle_no).replace(' ', '').replace('-', '').upper()
+        if v_upper in {'NOTFOUND', 'HR85G2790', 'INVALID', 'UNKNOWN'}:
+            raise VehicleNotFoundError(f"Vehicle '{vehicle_no}' does not exist or is not active in the system.")
         payload = {**SAMPLE_PAYLOAD, 'data': {**SAMPLE_PAYLOAD['data'], 'vehicleNo': vehicle_no.upper()}}
         return normalise_vehicle_payload(payload, fallback_vehicle_no=vehicle_no, timezone_name=self.timezone_name)
 
 def _retryable_http_error(exc: BaseException) -> bool:
-    if isinstance(exc, httpx.HTTPStatusError): return exc.response.status_code == 429 or exc.response.status_code >= 500
+    if isinstance(exc, VehicleNotFoundError):
+        return False
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code == 429 or exc.response.status_code >= 500
     return isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
 
 class HttpVehicleApiClient:
-    def __init__(self, settings: Settings): self.settings = settings
+    def __init__(self, settings: Settings):
+        self.settings = settings
+
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.2,min=0.2,max=1.0), retry=retry_if_exception(_retryable_http_error), reraise=True)
     def get_vehicle(self, vehicle_no: str) -> VehicleSnapshot:
         template = (self.settings.vehicle_api_url_template or '').strip()
@@ -55,6 +69,18 @@ class HttpVehicleApiClient:
 
         with httpx.Client(timeout=self.settings.vehicle_api_timeout_seconds) as client:
             response = client.get(url, headers=headers)
+            if response.status_code in (404, 406):
+                try:
+                    data = response.json()
+                    msg = data.get('message') or data.get('status') or f"Vehicle '{vehicle_no}' does not exist or is not active."
+                except Exception:
+                    msg = response.text or f"Vehicle '{vehicle_no}' does not exist."
+                raise VehicleNotFoundError(msg)
             response.raise_for_status()
             payload = response.json()
+            if isinstance(payload, dict):
+                if payload.get('code') in (404, 406) or str(payload.get('status')).upper() in ('NOT_ACCEPTABLE', 'NOT_FOUND'):
+                    msg = payload.get('message') or f"Vehicle '{vehicle_no}' does not exist or is not active."
+                    raise VehicleNotFoundError(msg)
+
         return normalise_vehicle_payload(payload, fallback_vehicle_no=vehicle_no, timezone_name=self.settings.app_timezone)

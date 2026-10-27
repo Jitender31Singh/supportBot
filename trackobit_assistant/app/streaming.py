@@ -41,6 +41,7 @@ _PROGRESS_LABELS = {
     "answer_from_paused": "Checking details from the paused issue…",
     "choose_workflow": "Checking which paused issue you want to continue…",
     "reminder_footer": "Adding the reminder for your paused issue…",
+    "recap_node": "Recalling what you asked in this conversation…",
     "save_session": "Saving this conversation…",
 }
 

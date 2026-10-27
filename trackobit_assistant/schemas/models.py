@@ -21,6 +21,7 @@ class Intent(StrEnum):
     NEW_WORKFLOW = 'new_workflow'
     REFERENCES_PAUSED = 'references_paused'
     AMBIGUOUS_TARGET = 'ambiguous_target'
+    RECAP_CONVERSATION = 'recap_conversation'
     UNCLEAR = 'unclear'
 
 class IntentItem(BaseModel):
@@ -49,6 +50,7 @@ class QueryKind(StrEnum):
     STATIC_INFO = 'static_info'
     DIAGNOSIS = 'diagnosis'
     DEVICE_COMMANDS = 'device_commands'
+    RECAP_CONVERSATION = 'recap_conversation'
 
 class QueryClassification(BaseModel):
     kind: QueryKind = QueryKind.DIAGNOSIS
@@ -65,6 +67,21 @@ class ResolutionResult(BaseModel):
     verdict: ResolutionVerdict = ResolutionVerdict.UNCLEAR
     confidence: float = Field(default=0.5, ge=0, le=1)
     explanation: str = ''
+
+class ValidationStatus(StrEnum):
+    VALID = 'valid'
+    INVALID = 'invalid'
+    UNKNOWN = 'unknown'
+    PENDING = 'pending'
+    UNAVAILABLE = 'unavailable'
+    FAILED = 'failed'
+
+class DiagnosticCheckResult(BaseModel):
+    check_name: str
+    status: ValidationStatus = ValidationStatus.UNKNOWN
+    evidence: list[str] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)
+    recommended_action: str | None = None
 
 class FaultCategory(StrEnum):
     ACCOUNT_ISSUE = 'account_issue'
@@ -101,6 +118,10 @@ class VehicleSnapshot(BaseModel):
     sim_no: str | None = None
     operator: str | None = None
     address: str | None = None
+    port: int | str | None = None
+    since: datetime | None = None
+    hours_since_status: float | None = None
+    days_since_status: float | None = None
     raw_payload: dict[str, Any] = Field(default_factory=dict)
 
 class CommandSpec(BaseModel):

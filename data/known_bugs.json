@@ -1,0 +1,11 @@
+{
+  "Bug-01": {
+    "bug_id": "Bug-01",
+    "title": "in distance report distance is shown in miles",
+    "symptoms": "distance in miles , distance is wrong, wrong distance, distance report issue",
+    "workaround": "use trackobit mobile app for now",
+    "eta": "2 weeks from now",
+    "severity": "Medium",
+    "status": "active"
+  }
+}

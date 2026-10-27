@@ -17,7 +17,41 @@ logger = logging.getLogger('trackobit_assistant.nodes.rag_answer')
 def make_node(runtime):
     def node(state, config=None):
         session_id = state.get('session_id', '-')
-        query=state.get('last_user_message','')
+        query = state.get('last_user_message', '')
+
+        # Check if the query matches an active known bug in Pinecone
+        bug_store = getattr(runtime, 'bug_store', None)
+        if bug_store is not None:
+            try:
+                matched_bug = bug_store.search_active_bug(query, llm=runtime.llm)
+            except Exception as e:
+                logger.warning(f"[RAG_ANSWER] Pinecone bug search error: {e}")
+                matched_bug = None
+
+            if matched_bug:
+                title = matched_bug.get('title')
+                bug_id = matched_bug.get('bug_id')
+                workaround = matched_bug.get('workaround') or 'Our engineering team is actively working on a fix.'
+                eta = matched_bug.get('eta') or 'in progress'
+                logger.info(f"[RAG_ANSWER] Query matched active known bug {bug_id} ({title})")
+                resp = (
+                    f"⚠️ We have identified this as an active known issue: **{title}** (Reference: `{bug_id}`).\n\n"
+                    f"• **Status**: Active (Fix ETA: {eta})\n"
+                    f"• **Workaround**: {workaround}\n\n"
+                    f"Our engineering team is actively resolving this issue."
+                )
+                return {
+                    'response': resp,
+                    'sources': [f'Known Outages: {bug_id}'],
+                    'rag_confidence': 0.95,
+                    'rag_confidence_threshold': runtime.settings.rag_confidence_threshold,
+                    'active_workflow': 'none',
+                    'awaiting': 'none',
+                    'resolved': True,
+                    'fault_category': 'known_software_outage',
+                    'known_bug': matched_bug,
+                }
+
         logger.info(f"[RAG_ANSWER] Searching knowledge base for query: '{query}'", extra={'session_id': session_id})
         docs=runtime.knowledge_base.search(query,k=4)
         sources=list(dict.fromkeys(d.get('source','unknown') for d in docs))
