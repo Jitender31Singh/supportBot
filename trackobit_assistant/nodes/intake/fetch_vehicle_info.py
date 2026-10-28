@@ -20,7 +20,15 @@ def make_node(runtime):
                 f"[FETCH_VEHICLE] Success: device_type='{snapshot_json.get('device_type')}', ignition='{snapshot_json.get('ignition')}', last_update='{snapshot_json.get('last_update')}'",
                 extra={'session_id': session_id}
             )
-            return {'vehicle_snapshot': snapshot_json, 'snapshot_history': (previous + [snapshot_json])[-10:], 'api_ok': True, 'api_error': None, 'response': '', 'current_step': 'fault_classifier'}
+            return {
+                'vehicle_snapshot': snapshot_json,
+                'snapshot_history': (previous + [snapshot_json])[-10:],
+                'api_ok': True,
+                'api_error': None,
+                'vehicle_not_found': False,
+                'response': '',
+                'current_step': 'fault_classifier',
+            }
         except VehicleNotFoundError as exc:
             logger.warning(f"[FETCH_VEHICLE] Vehicle '{vehicle}' does not exist or is not active: {exc}", extra={'session_id': session_id})
             return {
