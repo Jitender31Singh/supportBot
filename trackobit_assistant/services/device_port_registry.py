@@ -98,13 +98,23 @@ class DevicePortRegistry:
         return info.expected_port if info else None
 
     def is_port_matching(self, device_type_or_code: str, actual_port: Any) -> Optional[bool]:
-        """Return True if actual_port matches expected_port, False if mismatch, None if unknown device/port."""
-        if actual_port is None:
-            return None
+        """Return True if actual_port matches expected_port, False if mismatch or not configured, None if unknown device."""
+        if not is_port_configured(actual_port):
+            return False
         info = self.get_device_port_info(device_type_or_code)
         if not info:
             return None
+        if not is_port_configured(info.expected_port):
+            return False
         return str(actual_port).strip() == str(info.expected_port).strip()
+
+
+def is_port_configured(port: Any) -> bool:
+    """Return True if port is configured (not None, not empty, and not '0'). Port 0 means not configured."""
+    if port is None:
+        return False
+    p_str = str(port).strip()
+    return p_str != "" and p_str != "0"
 
 
 # Singleton global instance

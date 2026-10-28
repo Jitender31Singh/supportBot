@@ -24,6 +24,7 @@ from trackobit_assistant.services.device_port_registry import (
     format_port_mismatch_message,
     get_device_port_info,
     get_expected_port,
+    is_port_configured,
     is_port_matching,
 )
 
@@ -365,15 +366,17 @@ def make_node(runtime: Any):
             updates["config_device_type_status"] = ValidationStatus.VALID.value
 
         if should_validate_port:
-            if port is None or str(port).strip() == "":
-                logger.warning("[CHECK_CONFIG] Configured port is missing or empty", extra={"session_id": session_id})
+            if not is_port_configured(port):
+                logger.warning("[CHECK_CONFIG] Configured port is not configured (missing, empty, or 0)", extra={"session_id": session_id})
+                expected_port = get_expected_port(device_type)
+                port_hint = f" ({device_type} requires port {expected_port})" if expected_port and is_port_configured(expected_port) else ""
                 return {
                     **updates,
                     "config_port_status": ValidationStatus.INVALID.value,
                     "current_step": "human_handoff",
                     "handoff_reason": "missing_configured_port",
                     "response": (
-                        f"The communication port for vehicle {vehicle_no} is missing in system records. "
+                        f"The communication port for vehicle {vehicle_no} is not configured in system records{port_hint}. "
                         "Transferring you to support to configure the port."
                     ),
                     "awaiting": "none",

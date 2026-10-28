@@ -81,7 +81,8 @@ def _create_test_runtime(tmp_path: Path, vehicle_client=None):
 # Unit tests for check_config node
 # ---------------------------------------------------------------------------
 
-def test_missing_port_escalates_to_human_handoff(tmp_path: Path):
+@pytest.mark.parametrize("unconfigured_port", [None, 0, "0", ""])
+def test_missing_or_zero_port_escalates_to_human_handoff(tmp_path: Path, unconfigured_port):
     runtime, _ = _create_test_runtime(tmp_path)
     node = make_check_config_node(runtime)
     state = {
@@ -90,7 +91,7 @@ def test_missing_port_escalates_to_human_handoff(tmp_path: Path):
             "vehicle_no": "HR85G2799",
             "state": "unreachable",
             "device_type": "Concox V5",
-            "port": None,  # Missing port
+            "port": unconfigured_port,  # Port 0, None, or empty means not configured
             "vehicle_status": "Active",
             "device_status": "Active",
             "minutes_since_last_update": 15.0,
@@ -102,6 +103,8 @@ def test_missing_port_escalates_to_human_handoff(tmp_path: Path):
     assert result["current_step"] == "human_handoff"
     assert result["handoff_reason"] == "missing_configured_port"
     assert result["config_port_status"] == ValidationStatus.INVALID.value
+    assert "not configured in system records" in result["response"]
+    assert "5023" in result["response"]
 
 
 def test_missing_device_type_escalates(tmp_path: Path):
