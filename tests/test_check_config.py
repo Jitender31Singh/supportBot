@@ -95,6 +95,7 @@ def test_missing_port_escalates_to_human_handoff(tmp_path: Path):
             "device_status": "Active",
             "minutes_since_last_update": 15.0,
         },
+        "config_device_type_status": ValidationStatus.VALID.value,
         "awaiting": "none",
     }
     result = node(state)
@@ -124,11 +125,11 @@ def test_missing_device_type_escalates(tmp_path: Path):
     assert result["handoff_reason"] == "missing_device_type"
 
 
-def test_fresh_or_non_unreachable_bypasses_port_and_device_checks(tmp_path: Path):
+def test_non_unreachable_bypasses_port_and_device_checks(tmp_path: Path):
     runtime, _ = _create_test_runtime(tmp_path)
     node = make_check_config_node(runtime)
 
-    # Case 1: Device is Idle and fresh (minutes=2.0)
+    # Device is Idle and fresh (minutes=2.0)
     snapshot_idle = {
         "vehicle_no": "HR85G2799",
         "state": "Idle",
@@ -143,19 +144,39 @@ def test_fresh_or_non_unreachable_bypasses_port_and_device_checks(tmp_path: Path
     assert res_idle["config_device_type_status"] == ValidationStatus.VALID.value
     assert res_idle["awaiting"] == "none"
 
-    # Case 2: Device is unreachable but fresh (minutes <= 10.0)
+
+def test_unreachable_lu_under_10m_acknowledges_device_type_only(tmp_path: Path):
+    runtime, _ = _create_test_runtime(tmp_path)
+    node = make_check_config_node(runtime)
+
+    # Device is unreachable but lu is smaller than 10 min (4.0 mins)
     snapshot_fresh_unreachable = {
         "vehicle_no": "HR85G2799",
         "state": "unreachable",
         "device_type": "Concox V5",
-        "port": 8503,
+        "port": 8503,  # Mismatched port in system records
         "vehicle_status": "Active",
         "device_status": "Active",
         "minutes_since_last_update": 4.0,
     }
-    res_fresh = node({"vehicle_no": "HR85G2799", "vehicle_snapshot": snapshot_fresh_unreachable, "awaiting": "none"})
-    assert res_fresh["config_port_status"] == ValidationStatus.VALID.value
-    assert res_fresh["config_device_type_status"] == ValidationStatus.VALID.value
+
+    # Turn 1: Acknowledges device type only (asks to confirm device model, not port)
+    res1 = node({"vehicle_no": "HR85G2799", "vehicle_snapshot": snapshot_fresh_unreachable, "awaiting": "none"})
+    assert res1["awaiting"] == "config_device_type_confirm"
+    assert "Concox V5" in res1["response"]
+    assert "8503" not in res1["response"]  # Does not ask about port!
+
+    # Turn 2: User confirms device type -> port check is bypassed because lu < 10m
+    res2 = node({
+        "vehicle_no": "HR85G2799",
+        "vehicle_snapshot": snapshot_fresh_unreachable,
+        "awaiting": "config_device_type_confirm",
+        "last_user_message": "yes, correct",
+    })
+    assert res2["config_device_type_status"] == ValidationStatus.VALID.value
+    assert res2["config_port_status"] == ValidationStatus.VALID.value
+    # Does not ask for port confirmation or port fix
+    assert res2.get("awaiting") == "none"
 
 
 def test_unreachable_stale_device_type_rejected_escalates(tmp_path: Path):

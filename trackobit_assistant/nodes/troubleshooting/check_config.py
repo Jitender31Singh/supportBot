@@ -321,8 +321,11 @@ def make_node(runtime: Any):
         device_type = snapshot_dict.get("device_type")
 
         # 1. Port & Device Type checks
-        # User Rule: Device type and port should ONLY be checked if state is 'unreachable' and lu > 10 minutes.
-        device_state = str(snapshot_dict.get("state") or "").strip().lower()
+        # Rules:
+        # - If status is unreachable and lu > 10m: validate BOTH device type and port (with mismatch guidance).
+        # - If status is unreachable but lu <= 10m: acknowledge / validate device type ONLY (bypass port check).
+        # - If status is not unreachable: bypass both.
+        device_state = str(snapshot_dict.get("state") or snapshot_dict.get("vehicle_status") or "").strip().lower()
         raw_minutes = snapshot_dict.get("minutes_since_last_update")
         try:
             minutes_float = float(raw_minutes) if raw_minutes is not None else None
@@ -331,12 +334,11 @@ def make_node(runtime: Any):
 
         is_unreachable = (device_state == "unreachable")
         is_stale_over_10m = (minutes_float is not None and minutes_float > 10.0)
-        should_validate_device_and_port = is_unreachable and is_stale_over_10m
 
-        if should_validate_device_and_port:
-            port = snapshot_dict.get("port")
-            device_type = snapshot_dict.get("device_type")
+        should_validate_device_type = is_unreachable
+        should_validate_port = is_unreachable and is_stale_over_10m
 
+        if should_validate_device_type:
             if not device_type or str(device_type).strip() == "":
                 logger.warning("[CHECK_CONFIG] Device type is missing", extra={"session_id": session_id})
                 return {
@@ -351,6 +353,18 @@ def make_node(runtime: Any):
                     "awaiting": "none",
                 }
 
+            device_type_status = state.get("config_device_type_status")
+            if device_type_status != ValidationStatus.VALID.value:
+                return {
+                    **updates,
+                    "response": f"The device model registered in our system is '{device_type}'. Does this match your installed physical device?",
+                    "awaiting": "config_device_type_confirm",
+                    "current_step": "check_config",
+                }
+        else:
+            updates["config_device_type_status"] = ValidationStatus.VALID.value
+
+        if should_validate_port:
             if port is None or str(port).strip() == "":
                 logger.warning("[CHECK_CONFIG] Configured port is missing or empty", extra={"session_id": session_id})
                 return {
@@ -363,15 +377,6 @@ def make_node(runtime: Any):
                         "Transferring you to support to configure the port."
                     ),
                     "awaiting": "none",
-                }
-
-            device_type_status = state.get("config_device_type_status")
-            if device_type_status != ValidationStatus.VALID.value:
-                return {
-                    **updates,
-                    "response": f"The device model registered in our system is '{device_type}'. Does this match your installed physical device?",
-                    "awaiting": "config_device_type_confirm",
-                    "current_step": "check_config",
                 }
 
             port_status = state.get("config_port_status")
@@ -400,9 +405,7 @@ def make_node(runtime: Any):
                         "current_step": "check_config",
                     }
         else:
-            # Bypass device type and port validation for non-unreachable or fresh vehicles
             updates["config_port_status"] = ValidationStatus.VALID.value
-            updates["config_device_type_status"] = ValidationStatus.VALID.value
 
         # 2. Precedence: Vehicle Status & Subscription Check
         vehicle_status = str(snapshot_dict.get("vehicle_status") or "").strip()
