@@ -20,6 +20,12 @@ from typing import Any
 from trackobit_assistant.graph.state import AssistantState
 from trackobit_assistant.schemas.models import ValidationStatus, VehicleSnapshot
 from trackobit_assistant.services.device_diagnostics import check_imei, check_ip, check_port
+from trackobit_assistant.services.device_port_registry import (
+    format_port_mismatch_message,
+    get_device_port_info,
+    get_expected_port,
+    is_port_matching,
+)
 
 logger = logging.getLogger("trackobit_assistant.nodes.check_config")
 
@@ -30,6 +36,10 @@ AFFIRMATIVE_PATTERN = re.compile(
 )
 NEGATIVE_PATTERN = re.compile(
     r"\b(no+|nah+|nope|not|wrong|incorrect|different|false|nahi|na|galat|doesn\'?t\s+match|don\'?t\s+match)\b",
+    re.IGNORECASE
+)
+FIX_CONFIRM_PATTERN = re.compile(
+    r"\b(done|fixed|updated|configured|changed|reconfigured|sent|already\s+done)\b",
     re.IGNORECASE
 )
 
@@ -49,6 +59,15 @@ def _is_affirmative(text: str) -> bool:
     if _is_negative(t):
         return False
     return bool(AFFIRMATIVE_PATTERN.search(t))
+
+def _is_fix_confirmed(text: str) -> bool:
+    if not text:
+        return False
+    if _is_negative(text):
+        return False
+    if _is_affirmative(text):
+        return True
+    return bool(FIX_CONFIRM_PATTERN.search(str(text).strip()))
 
 
 def _get_rag_guidance(runtime: Any, query: str, default_text: str) -> str:
@@ -163,6 +182,39 @@ def make_node(runtime: Any):
                     "awaiting": "config_device_type_confirm",
                 }
 
+        elif awaiting == "config_port_fix_confirm":
+            if _is_fix_confirmed(user_message):
+                logger.info("[CHECK_CONFIG] Client confirmed port was updated/reconfigured", extra={"session_id": session_id})
+                try:
+                    refreshed = runtime.vehicle_client.get_vehicle(vehicle_no)
+                    snapshot_dict = refreshed.model_dump(mode="json")
+                    updates["vehicle_snapshot"] = snapshot_dict
+                except Exception as exc:
+                    logger.warning(f"[CHECK_CONFIG] Could not re-fetch vehicle snapshot: {exc}", extra={"session_id": session_id})
+                updates["config_port_status"] = ValidationStatus.VALID.value
+                state = {**state, "vehicle_snapshot": snapshot_dict, "config_port_status": ValidationStatus.VALID.value, "awaiting": "none"}
+            elif _is_negative(user_message):
+                logger.warning("[CHECK_CONFIG] Client unable to reconfigure port", extra={"session_id": session_id})
+                return {
+                    **updates,
+                    "config_port_status": ValidationStatus.INVALID.value,
+                    "current_step": "human_handoff",
+                    "handoff_reason": "port_reconfiguration_assistance_required",
+                    "response": (
+                        f"I understand. I am transferring your request to our technical support team to assist with "
+                        f"reconfiguring the communication port for vehicle {vehicle_no}."
+                    ),
+                    "awaiting": "none",
+                }
+            else:
+                device_type = snapshot_dict.get("device_type")
+                expected_port = get_expected_port(device_type) or "the required port"
+                return {
+                    **updates,
+                    "response": f"Please let me know once you have updated the port to {expected_port}, or reply 'no' if you need technical support to assist you.",
+                    "awaiting": "config_port_fix_confirm",
+                }
+
         elif awaiting == "subscription_renewal_confirm":
             logger.info("[CHECK_CONFIG] Client reports subscription renewal, re-fetching API...", extra={"session_id": session_id})
             try:
@@ -269,51 +321,88 @@ def make_node(runtime: Any):
         device_type = snapshot_dict.get("device_type")
 
         # 1. Port & Device Type checks
-        if port is None or str(port).strip() == "":
-            logger.warning("[CHECK_CONFIG] Configured port is missing or empty", extra={"session_id": session_id})
-            return {
-                **updates,
-                "config_port_status": ValidationStatus.INVALID.value,
-                "current_step": "human_handoff",
-                "handoff_reason": "missing_configured_port",
-                "response": (
-                    f"The communication port for vehicle {vehicle_no} is missing in system records. "
-                    "Transferring you to support to configure the port."
-                ),
-                "awaiting": "none",
-            }
+        # User Rule: Device type and port should ONLY be checked if state is 'unreachable' and lu > 10 minutes.
+        device_state = str(snapshot_dict.get("state") or "").strip().lower()
+        raw_minutes = snapshot_dict.get("minutes_since_last_update")
+        try:
+            minutes_float = float(raw_minutes) if raw_minutes is not None else None
+        except (ValueError, TypeError):
+            minutes_float = None
 
-        if not device_type or str(device_type).strip() == "":
-            logger.warning("[CHECK_CONFIG] Device type is missing", extra={"session_id": session_id})
-            return {
-                **updates,
-                "config_device_type_status": ValidationStatus.INVALID.value,
-                "current_step": "human_handoff",
-                "handoff_reason": "missing_device_type",
-                "response": (
-                    f"The device model for vehicle {vehicle_no} is missing in system records. "
-                    "Transferring you to support."
-                ),
-                "awaiting": "none",
-            }
+        is_unreachable = (device_state == "unreachable")
+        is_stale_over_10m = (minutes_float is not None and minutes_float > 10.0)
+        should_validate_device_and_port = is_unreachable and is_stale_over_10m
 
-        port_status = state.get("config_port_status")
-        if port_status != ValidationStatus.VALID.value:
-            return {
-                **updates,
-                "response": f"The device is configured on port {port}. Can you please confirm if this matches the port your device is sending data to?",
-                "awaiting": "config_port_confirm",
-                "current_step": "check_config",
-            }
+        if should_validate_device_and_port:
+            port = snapshot_dict.get("port")
+            device_type = snapshot_dict.get("device_type")
 
-        device_type_status = state.get("config_device_type_status")
-        if device_type_status != ValidationStatus.VALID.value:
-            return {
-                **updates,
-                "response": f"The device model registered in our system is '{device_type}'. Does this match your installed physical device?",
-                "awaiting": "config_device_type_confirm",
-                "current_step": "check_config",
-            }
+            if not device_type or str(device_type).strip() == "":
+                logger.warning("[CHECK_CONFIG] Device type is missing", extra={"session_id": session_id})
+                return {
+                    **updates,
+                    "config_device_type_status": ValidationStatus.INVALID.value,
+                    "current_step": "human_handoff",
+                    "handoff_reason": "missing_device_type",
+                    "response": (
+                        f"The device model for vehicle {vehicle_no} is missing in system records. "
+                        "Transferring you to support."
+                    ),
+                    "awaiting": "none",
+                }
+
+            if port is None or str(port).strip() == "":
+                logger.warning("[CHECK_CONFIG] Configured port is missing or empty", extra={"session_id": session_id})
+                return {
+                    **updates,
+                    "config_port_status": ValidationStatus.INVALID.value,
+                    "current_step": "human_handoff",
+                    "handoff_reason": "missing_configured_port",
+                    "response": (
+                        f"The communication port for vehicle {vehicle_no} is missing in system records. "
+                        "Transferring you to support to configure the port."
+                    ),
+                    "awaiting": "none",
+                }
+
+            device_type_status = state.get("config_device_type_status")
+            if device_type_status != ValidationStatus.VALID.value:
+                return {
+                    **updates,
+                    "response": f"The device model registered in our system is '{device_type}'. Does this match your installed physical device?",
+                    "awaiting": "config_device_type_confirm",
+                    "current_step": "check_config",
+                }
+
+            port_status = state.get("config_port_status")
+            if port_status != ValidationStatus.VALID.value:
+                expected_port = get_expected_port(device_type)
+                if expected_port and str(port).strip() != str(expected_port).strip():
+                    msg = format_port_mismatch_message(
+                        vehicle_no=vehicle_no,
+                        device_type=device_type,
+                        actual_port=port,
+                        expected_port=expected_port,
+                        command_registry=getattr(runtime, "command_registry", None),
+                    )
+                    return {
+                        **updates,
+                        "config_port_status": ValidationStatus.INVALID.value,
+                        "response": msg,
+                        "awaiting": "config_port_fix_confirm",
+                        "current_step": "check_config",
+                    }
+                else:
+                    return {
+                        **updates,
+                        "response": f"The device is configured on port {port}. Can you please confirm if this matches the port your device is sending data to?",
+                        "awaiting": "config_port_confirm",
+                        "current_step": "check_config",
+                    }
+        else:
+            # Bypass device type and port validation for non-unreachable or fresh vehicles
+            updates["config_port_status"] = ValidationStatus.VALID.value
+            updates["config_device_type_status"] = ValidationStatus.VALID.value
 
         # 2. Precedence: Vehicle Status & Subscription Check
         vehicle_status = str(snapshot_dict.get("vehicle_status") or "").strip()

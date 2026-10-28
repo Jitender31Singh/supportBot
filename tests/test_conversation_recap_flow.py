@@ -60,9 +60,13 @@ def test_what_i_have_asked_after_vehicle_check(tmp_path: Path):
     res1 = graph.invoke(state, config={'configurable': {'thread_id': session_id}})
     store.save_graph_result(session_id, res1)
 
-    # Turn 2: confirm port
+    # Summary has been presented, awaiting is none
+    assert res1['awaiting'] == 'none'
+    assert 'HR85G2799' in res1['response']
+
+    # Turn 2: user asks "what i have asked?"
     state2 = store.state_for(session_id)
-    msg2 = "yes"
+    msg2 = "what i have asked?"
     state2.update({
         'session_id': session_id,
         'messages': list(res1['messages']) + [HumanMessage(content=msg2, id='msg-2')],
@@ -73,49 +77,15 @@ def test_what_i_have_asked_after_vehicle_check(tmp_path: Path):
         'pending_intents': []
     })
     res2 = graph.invoke(state2, config={'configurable': {'thread_id': session_id}})
-    store.save_graph_result(session_id, res2)
-
-    # Turn 3: confirm device model
-    state3 = store.state_for(session_id)
-    msg3 = "yes"
-    state3.update({
-        'session_id': session_id,
-        'messages': list(res2['messages']) + [HumanMessage(content=msg3, id='msg-3')],
-        'last_user_message': msg3,
-        'response': '',
-        'sources': [],
-        'target_frame_id': None,
-        'pending_intents': []
-    })
-    res3 = graph.invoke(state3, config={'configurable': {'thread_id': session_id}})
-    store.save_graph_result(session_id, res3)
-
-    # Summary has been presented, awaiting is none
-    assert res3['awaiting'] == 'none'
-    assert 'HR85G2799' in res3['response']
-
-    # Turn 4: user asks "what i have asked?"
-    state4 = store.state_for(session_id)
-    msg4 = "what i have asked?"
-    state4.update({
-        'session_id': session_id,
-        'messages': list(res3['messages']) + [HumanMessage(content=msg4, id='msg-4')],
-        'last_user_message': msg4,
-        'response': '',
-        'sources': [],
-        'target_frame_id': None,
-        'pending_intents': []
-    })
-    res4 = graph.invoke(state4, config={'configurable': {'thread_id': session_id}})
 
     # Must NOT raise ticket or escalate to human handoff!
-    assert 'Ticket' not in res4['response']
-    assert 'handing this over' not in res4['response']
-    assert res4.get('handoff_reason') is None
+    assert 'Ticket' not in res2['response']
+    assert 'handing this over' not in res2['response']
+    assert res2.get('handoff_reason') is None
 
     # Must recall what user asked about HR85G2799
-    assert 'HR85G2799' in res4['response']
-    assert 'check the configuration' in res4['response'].lower() or 'configuration' in res4['response'].lower()
+    assert 'HR85G2799' in res2['response']
+    assert 'check the configuration' in res2['response'].lower() or 'configuration' in res2['response'].lower()
 
 
 def test_recap_query_hinglish(tmp_path: Path):

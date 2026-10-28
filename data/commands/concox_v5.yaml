@@ -1,16 +1,13 @@
 device_type: Concox V5
 aliases:
-- Concox
-- Concox GT06F
-- GT06F
 - Concox V7
-port: 8505
+port: 5023
 configuration:
-  server: SERVER,0,52.74.44.145,8505,0#
+  server: SERVER,0,52.74.44.145,5023,0#
   apn: APN,airtelgprs.com#
   timezone: GMT,E,0,00#
   timer: TIMER,20,20#
-  port: 8505
+  port: 5023
 commands:
 - id: status
   order: 1
@@ -87,7 +84,7 @@ commands:
   next_if_inconclusive: []
 - id: server
   order: 3
-  command: SERVER,0,52.74.44.145,8505,0#
+  command: SERVER,0,52.74.44.145,5023,0#
   purpose: Configure device reporting server IP and port (8505)
   how_to_send: Send this SMS from the registered SIM or command box to point tracker
     to TrackoBit server.

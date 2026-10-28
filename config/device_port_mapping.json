@@ -1,0 +1,1214 @@
+[
+  {
+    "enum_name": "CONCOX",
+    "code": "cx",
+    "display_name": "Concox",
+    "port": "8505"
+  },
+  {
+    "enum_name": "CONCOX_GT06F",
+    "code": "cx06f",
+    "display_name": "Concox GT06F",
+    "port": "8505"
+  },
+  {
+    "enum_name": "WETRACK_800",
+    "code": "cx800",
+    "display_name": "Wetrack 800",
+    "port": "8505"
+  },
+  {
+    "enum_name": "ET300",
+    "code": "et",
+    "display_name": "ET-300",
+    "port": "5023"
+  },
+  {
+    "enum_name": "ET310",
+    "code": "et310",
+    "display_name": "ET-310",
+    "port": "8611"
+  },
+  {
+    "enum_name": "BW09",
+    "code": "bw09",
+    "display_name": "BW-09",
+    "port": "5023"
+  },
+  {
+    "enum_name": "BW602",
+    "code": "bw602",
+    "display_name": "BW-602",
+    "port": "5023"
+  },
+  {
+    "enum_name": "LT05",
+    "code": "lt",
+    "display_name": "LT-05",
+    "port": "5023"
+  },
+  {
+    "enum_name": "LT05P",
+    "code": "ltp",
+    "display_name": "LT-05P",
+    "port": "5023"
+  },
+  {
+    "enum_name": "JV200",
+    "code": "jv",
+    "display_name": "JV-200",
+    "port": "8505"
+  },
+  {
+    "enum_name": "COBAN",
+    "code": "cb",
+    "display_name": "Coban",
+    "port": "8787"
+  },
+  {
+    "enum_name": "GT_300",
+    "code": "gt300",
+    "display_name": "GT-300",
+    "port": "8505"
+  },
+  {
+    "enum_name": "GT_02",
+    "code": "gt02",
+    "display_name": "GT-02",
+    "port": "8505"
+  },
+  {
+    "enum_name": "RP_01",
+    "code": "rp01",
+    "display_name": "RP-01",
+    "port": "5023"
+  },
+  {
+    "enum_name": "TK_103",
+    "code": "tk103",
+    "display_name": "TK-103",
+    "port": "8800"
+  },
+  {
+    "enum_name": "TK_06_A",
+    "code": "tk06A",
+    "display_name": "TK-06A",
+    "port": "5023"
+  },
+  {
+    "enum_name": "RP_01_N",
+    "code": "rp01n",
+    "display_name": "RP-01-N",
+    "port": "8505"
+  },
+  {
+    "enum_name": "TELTONIKA",
+    "code": "tltnk",
+    "display_name": "Teltonika",
+    "port": "8501"
+  },
+  {
+    "enum_name": "TELTONIKA_CAN",
+    "code": "tltnkcan",
+    "display_name": "Teltonika_CAN",
+    "port": "8501"
+  },
+  {
+    "enum_name": "BOFAN",
+    "code": "bf",
+    "display_name": "Bofan",
+    "port": "8602"
+  },
+  {
+    "enum_name": "ERIDIUMEDGE",
+    "code": "ereg",
+    "display_name": "EridiumEdge",
+    "port": "8602"
+  },
+  {
+    "enum_name": "CANTRACK",
+    "code": "cnt",
+    "display_name": "Cantrack",
+    "port": "8601"
+  },
+  {
+    "enum_name": "PRIME07",
+    "code": "prm07",
+    "display_name": "Prime07",
+    "port": "8603"
+  },
+  {
+    "enum_name": "GB101",
+    "code": "gb101",
+    "display_name": "GB101",
+    "port": "8605"
+  },
+  {
+    "enum_name": "CONCOXAC",
+    "code": "cxa",
+    "display_name": "Concox Ac",
+    "port": "8505"
+  },
+  {
+    "enum_name": "SEEWORLD_R11",
+    "code": "swr11",
+    "display_name": "SeeWorld-R11",
+    "port": "5023"
+  },
+  {
+    "enum_name": "SEEWORLD_R12",
+    "code": "swr12",
+    "display_name": "Seaworld-R12",
+    "port": "5023"
+  },
+  {
+    "enum_name": "RP_05",
+    "code": "rp05",
+    "display_name": "RP-05",
+    "port": "5023"
+  },
+  {
+    "enum_name": "RP_05E",
+    "code": "rp05e",
+    "display_name": "RP-05E",
+    "port": "5023"
+  },
+  {
+    "enum_name": "RP_01_AC",
+    "code": "rp01ac",
+    "display_name": "RP-01 Ac",
+    "port": "5023"
+  },
+  {
+    "enum_name": "EV02",
+    "code": "ev02",
+    "display_name": "EV-02",
+    "port": "5023"
+  },
+  {
+    "enum_name": "EV18",
+    "code": "ev18",
+    "display_name": "EV-18",
+    "port": "5023"
+  },
+  {
+    "enum_name": "G19S",
+    "code": "g19s",
+    "display_name": "G19S",
+    "port": "5023"
+  },
+  {
+    "enum_name": "PT06",
+    "code": "pt06",
+    "display_name": "PT-06",
+    "port": "5023"
+  },
+  {
+    "enum_name": "TR08",
+    "code": "tr08",
+    "display_name": "TR-08",
+    "port": "5023"
+  },
+  {
+    "enum_name": "TR08A",
+    "code": "tr08a",
+    "display_name": "TR-08A",
+    "port": "5023"
+  },
+  {
+    "enum_name": "TR06",
+    "code": "tr06",
+    "display_name": "TR-06",
+    "port": "5023"
+  },
+  {
+    "enum_name": "AT06",
+    "code": "at06",
+    "display_name": "AT-06",
+    "port": "5023"
+  },
+  {
+    "enum_name": "ITRI_TS101B",
+    "code": "itri101b",
+    "display_name": "iTRI_TS101B",
+    "port": "8604"
+  },
+  {
+    "enum_name": "ITRI_TS101B_CAN",
+    "code": "itri101bcan",
+    "display_name": "iTRI_TS101B_CAN",
+    "port": "8600"
+  },
+  {
+    "enum_name": "ITRI_UX101_CAN",
+    "code": "itriux101can",
+    "display_name": "iTRI_UX101_CAN",
+    "port": "8600"
+  },
+  {
+    "enum_name": "BD312",
+    "code": "blj",
+    "display_name": "BD-312",
+    "port": "8606"
+  },
+  {
+    "enum_name": "LOCK_G400",
+    "code": "lkg400",
+    "display_name": "LK-G400",
+    "port": "8607"
+  },
+  {
+    "enum_name": "CTS2020",
+    "code": "cts2020",
+    "display_name": "CTS-2020",
+    "port": "8608"
+  },
+  {
+    "enum_name": "GS102",
+    "code": "gs102",
+    "display_name": "GS-102",
+    "port": "8609"
+  },
+  {
+    "enum_name": "VISIONTEK",
+    "code": "visiontek",
+    "display_name": "VISIONTEK",
+    "port": "8610"
+  },
+  {
+    "enum_name": "GB140",
+    "code": "gb140",
+    "display_name": "AIS_GB140",
+    "port": "8598"
+  },
+  {
+    "enum_name": "BHARAT_101",
+    "code": "br101",
+    "display_name": "AIS_BHARAT-101",
+    "port": "8600"
+  },
+  {
+    "enum_name": "ATLANTA_AIS_140",
+    "code": "atlntaais140",
+    "display_name": "ATLANTA_AIS-140",
+    "port": "8600"
+  },
+  {
+    "enum_name": "BHARAT_101_CAN",
+    "code": "br101can",
+    "display_name": "AIS_BHARAT-101-CAN",
+    "port": "8600"
+  },
+  {
+    "enum_name": "COORDINATE140",
+    "code": "cr140",
+    "display_name": "AIS_Coordinate-140",
+    "port": "8599"
+  },
+  {
+    "enum_name": "GAGAN01",
+    "code": "ggn01",
+    "display_name": "AIS_Gagan-01",
+    "port": "8597"
+  },
+  {
+    "enum_name": "WETRACK140",
+    "code": "wetrack140",
+    "display_name": "AIS_WeTrack-140",
+    "port": "8596"
+  },
+  {
+    "enum_name": "TranSync140",
+    "code": "transync140",
+    "display_name": "AIS_TranSync-140",
+    "port": "8618"
+  },
+  {
+    "enum_name": "MAPOUT_AIS_140",
+    "code": "mapoutais140",
+    "display_name": "MAPOUT_AIS-140",
+    "port": "8594"
+  },
+  {
+    "enum_name": "MAPOUT_PLUS",
+    "code": "mapoutplus",
+    "display_name": "MAPOUT_PLUS",
+    "port": "8612"
+  },
+  {
+    "enum_name": "MAPOUT_CARD",
+    "code": "mpotcrd",
+    "display_name": "MapOut_Card",
+    "port": "8614"
+  },
+  {
+    "enum_name": "ATLANTA_LC100",
+    "code": "atlantalc100",
+    "display_name": "ATLANTA_LC-100",
+    "port": "8613"
+  },
+  {
+    "enum_name": "ATLANTA_L100",
+    "code": "atlantal100",
+    "display_name": "ATLANTA_L-100",
+    "port": "8613"
+  },
+  {
+    "enum_name": "LC400",
+    "code": "lc400",
+    "display_name": "LC400",
+    "port": "8613"
+  },
+  {
+    "enum_name": "ATLANTA_OBD2",
+    "code": "atlantalcobd2",
+    "display_name": "Atlanta_OBD-2",
+    "port": "8616"
+  },
+  {
+    "enum_name": "ATLANTA_PORTABLE",
+    "code": "atlntprtble",
+    "display_name": "Atlanta-Portable",
+    "port": "8613"
+  },
+  {
+    "enum_name": "PENTODE_99",
+    "code": "pentode99",
+    "display_name": "Pentode-99",
+    "port": "8801"
+  },
+  {
+    "enum_name": "TrackerLite_Plus",
+    "code": "trklitpls",
+    "display_name": "TrackerLite Plus",
+    "port": "8598"
+  },
+  {
+    "enum_name": "SecureITLite",
+    "code": "securitlit",
+    "display_name": "SecureITLite",
+    "port": "8598"
+  },
+  {
+    "enum_name": "SHE_01",
+    "code": "she01",
+    "display_name": "SHE_01",
+    "port": "8605"
+  },
+  {
+    "enum_name": "GS03",
+    "code": "gs03",
+    "display_name": "GS03",
+    "port": "5023"
+  },
+  {
+    "enum_name": "S102A",
+    "code": "s102a",
+    "display_name": "S102A",
+    "port": "5023"
+  },
+  {
+    "enum_name": "SIWI",
+    "code": "siwi",
+    "display_name": "SIWI",
+    "port": "8615"
+  },
+  {
+    "enum_name": "JOIN_TECH",
+    "code": "jointech",
+    "display_name": "Jointech",
+    "port": "8614"
+  },
+  {
+    "enum_name": "RV06",
+    "code": "rv06",
+    "display_name": "RV06",
+    "port": "5023"
+  },
+  {
+    "enum_name": "TRANSIGHT",
+    "code": "trnsit",
+    "display_name": "Transight",
+    "port": "8617"
+  },
+  {
+    "enum_name": "CONCOX_V5",
+    "code": "cxv5",
+    "display_name": "Concox V5",
+    "port": "5023"
+  },
+  {
+    "enum_name": "CONCOX_V7",
+    "code": "cxv7",
+    "display_name": "Concox V7",
+    "port": "5023"
+  },
+  {
+    "enum_name": "CANTRACK_PORTABLE",
+    "code": "cntprtbl",
+    "display_name": "Cantrack Portable",
+    "port": "8601"
+  },
+  {
+    "enum_name": "BW08",
+    "code": "bw08",
+    "display_name": "BW-08",
+    "port": "5023"
+  },
+  {
+    "enum_name": "RDM",
+    "code": "rdm",
+    "display_name": "AIS_RDM-140",
+    "port": "8600"
+  },
+  {
+    "enum_name": "BD101",
+    "code": "bd101",
+    "display_name": "BD-101",
+    "port": "5023"
+  },
+  {
+    "enum_name": "VT03",
+    "code": "vt03",
+    "display_name": "VT-03",
+    "port": "8618"
+  },
+  {
+    "enum_name": "BSTPL",
+    "code": "bstpl",
+    "display_name": "BSTPL",
+    "port": "8619"
+  },
+  {
+    "enum_name": "KINGWO",
+    "code": "kingwo",
+    "display_name": "KINGWO",
+    "port": "8616"
+  },
+  {
+    "enum_name": "MT200",
+    "code": "mt200",
+    "display_name": "MT-200",
+    "port": "8616"
+  },
+  {
+    "enum_name": "FIFOTRACK",
+    "code": "ffotrk",
+    "display_name": "Fifotrack",
+    "port": "8621"
+  },
+  {
+    "enum_name": "A_TELEMATICS",
+    "code": "atltcs",
+    "display_name": "A-Telematics",
+    "port": "8607"
+  },
+  {
+    "enum_name": "GALILEOSKY",
+    "code": "glilosky",
+    "display_name": "Galileosky",
+    "port": "8622"
+  },
+  {
+    "enum_name": "ISTARTEK",
+    "code": "istrtk",
+    "display_name": "iStartek",
+    "port": "8620"
+  },
+  {
+    "enum_name": "ISTARTEK_VT100",
+    "code": "istrtkVt100",
+    "display_name": "iStartek-VT100",
+    "port": "8620"
+  },
+  {
+    "enum_name": "ISTARTEK_VT202",
+    "code": "istrtkVt202",
+    "display_name": "iStartek-VT202",
+    "port": "8623"
+  },
+  {
+    "enum_name": "NAVTELECOM",
+    "code": "nvtlcm",
+    "display_name": "Navtelecom",
+    "port": "8624"
+  },
+  {
+    "enum_name": "RUPTELA",
+    "code": "rptl",
+    "display_name": "Ruptela",
+    "port": "8625"
+  },
+  {
+    "enum_name": "GOSAFE",
+    "code": "gsaf",
+    "display_name": "Gosafe",
+    "port": "8626"
+  },
+  {
+    "enum_name": "TOPFLYTECH",
+    "code": "tpfltch",
+    "display_name": "TOPFLYtech",
+    "port": "8627"
+  },
+  {
+    "enum_name": "HOWEN",
+    "code": "hwn",
+    "display_name": "Howen",
+    "port": "8628"
+  },
+  {
+    "enum_name": "STREAMAX",
+    "code": "stmx",
+    "display_name": "Streamax",
+    "port": "8629"
+  },
+  {
+    "enum_name": "METTAX",
+    "code": "mtx",
+    "display_name": "MettaX",
+    "port": "8631"
+  },
+  {
+    "enum_name": "METTAX_TB",
+    "code": "mtxtb",
+    "display_name": "MettaX_TB",
+    "port": "8631"
+  },
+  {
+    "enum_name": "ERM_TELEMATICS",
+    "code": "ermtlmtc",
+    "display_name": "ERM-Telematics",
+    "port": "8632"
+  },
+  {
+    "enum_name": "MT02",
+    "code": "mt02",
+    "display_name": "MT-02",
+    "port": "8631"
+  },
+  {
+    "enum_name": "S_102_C",
+    "code": "s102c",
+    "display_name": "S-102 (C)",
+    "port": "5023"
+  },
+  {
+    "enum_name": "LT03",
+    "code": "lt03",
+    "display_name": "LT-03",
+    "port": "8616"
+  },
+  {
+    "enum_name": "M04A",
+    "code": "m04a",
+    "display_name": "M04A",
+    "port": "5023"
+  },
+  {
+    "enum_name": "ERM_STARLINK",
+    "code": "erm-st",
+    "display_name": "ERM-Starlink",
+    "port": "8632"
+  },
+  {
+    "enum_name": "W_15",
+    "code": "w15",
+    "display_name": "W-15",
+    "port": "5023"
+  },
+  {
+    "enum_name": "ET06_8503",
+    "code": "et06",
+    "display_name": "ET06-8503",
+    "port": "5023"
+  },
+  {
+    "enum_name": "UVEEC_INDIA_08",
+    "code": "uvInd08",
+    "display_name": "UVEEC_INDIA_08",
+    "port": "8600"
+  },
+  {
+    "enum_name": "G_500",
+    "code": "g500",
+    "display_name": "G-500",
+    "port": "8633"
+  },
+  {
+    "enum_name": "QUECLINK",
+    "code": "qclnk",
+    "display_name": "Queclink",
+    "port": "8634"
+  },
+  {
+    "enum_name": "S106",
+    "code": "s106",
+    "display_name": "S106",
+    "port": "5023"
+  },
+  {
+    "enum_name": "G29",
+    "code": "g29",
+    "display_name": "G-29",
+    "port": "8635"
+  },
+  {
+    "enum_name": "GEMENI_ELITE",
+    "code": "gmnElt",
+    "display_name": "Gemeni Elite",
+    "port": "8636"
+  },
+  {
+    "enum_name": "GEMENI_AIS_140",
+    "code": "gmnAis140",
+    "display_name": "AIS_Gemeni-140",
+    "port": "8600"
+  },
+  {
+    "enum_name": "PS10",
+    "code": "ps10",
+    "display_name": "PS10",
+    "port": "5023"
+  },
+  {
+    "enum_name": "HHD",
+    "code": "hhd",
+    "display_name": "HHD",
+    "port": "8631"
+  },
+  {
+    "enum_name": "HHD2",
+    "code": "hhd2",
+    "display_name": "HHD-2",
+    "port": "8631"
+  },
+  {
+    "enum_name": "TRAQLOCK01",
+    "code": "trqlck",
+    "display_name": "Traq_lock_01",
+    "port": "8614"
+  },
+  {
+    "enum_name": "TRAQLOCK10D",
+    "code": "tqlk10d",
+    "display_name": "Traq_lock_10D",
+    "port": "8607"
+  },
+  {
+    "enum_name": "WETRACK_NIC_140",
+    "code": "wetrkNic140",
+    "display_name": "WeTrack_Nic-140",
+    "port": "8600"
+  },
+  {
+    "enum_name": "G101_CARD",
+    "code": "g101Crd",
+    "display_name": "G101 Card",
+    "port": "5023"
+  },
+  {
+    "enum_name": "JT_701_D",
+    "code": "jt701d",
+    "display_name": "JT-701-D",
+    "port": "8614"
+  },
+  {
+    "enum_name": "AT01D",
+    "code": "at01d",
+    "display_name": "AT-01-D",
+    "port": "8607"
+  },
+  {
+    "enum_name": "MS100",
+    "code": "ms100",
+    "display_name": "MS-100",
+    "port": "8637"
+  },
+  {
+    "enum_name": "SYN140",
+    "code": "syn140",
+    "display_name": "SYN-140",
+    "port": "8598"
+  },
+  {
+    "enum_name": "TMD_200A",
+    "code": "tmd200a",
+    "display_name": "TMD-200A",
+    "port": "8600"
+  },
+  {
+    "enum_name": "ET_01",
+    "code": "et01",
+    "display_name": "ET-01",
+    "port": "8640"
+  },
+  {
+    "enum_name": "INTRAK",
+    "code": "intrak",
+    "display_name": "INTRAK",
+    "port": "8639"
+  },
+  {
+    "enum_name": "GEOSAT",
+    "code": "geosat",
+    "display_name": "GEOSAT",
+    "port": "8644"
+  },
+  {
+    "enum_name": "TMD_100",
+    "code": "tmd100",
+    "display_name": "TMD-100",
+    "port": "8641"
+  },
+  {
+    "enum_name": "ECO_NIC",
+    "code": "econic",
+    "display_name": "Eco-NIC",
+    "port": "8600"
+  },
+  {
+    "enum_name": "ON_SATv58",
+    "code": "onsatv58",
+    "display_name": "OnSat-V58",
+    "port": "8607"
+  },
+  {
+    "enum_name": "HUABAO",
+    "code": "huabao",
+    "display_name": "Huabao",
+    "port": "8631"
+  },
+  {
+    "enum_name": "ICOREv3",
+    "code": "icrv3",
+    "display_name": "iCore-V3",
+    "port": "8642"
+  },
+  {
+    "enum_name": "AIRA_TRACKER_PRO",
+    "code": "araTrckPro",
+    "display_name": "Aira Tracker Pro",
+    "port": "8643"
+  },
+  {
+    "enum_name": "XT_09",
+    "code": "xt09",
+    "display_name": "XT-09",
+    "port": "8645"
+  },
+  {
+    "enum_name": "PS03",
+    "code": "ps03",
+    "display_name": "PS03",
+    "port": "5023"
+  },
+  {
+    "enum_name": "CELLO_CAN",
+    "code": "celloCAN",
+    "display_name": "Cello-CAN",
+    "port": "8610"
+  },
+  {
+    "enum_name": "PT_140B",
+    "code": "pt140b",
+    "display_name": "PT140B",
+    "port": "8600"
+  },
+  {
+    "enum_name": "SINO_TRACK",
+    "code": "snotrk",
+    "display_name": "Sino Track",
+    "port": "8601"
+  },
+  {
+    "enum_name": "ACUMEN_X_1",
+    "code": "acmnX1",
+    "display_name": "Acumen_X-1",
+    "port": "5023"
+  },
+  {
+    "enum_name": "AIS_CDAC",
+    "code": "aiscdac140",
+    "display_name": "AIS_CDAC-140",
+    "port": "8646"
+  },
+  {
+    "enum_name": "AIS_LOCATE_140",
+    "code": "aislct140",
+    "display_name": "AIS_Locate-140",
+    "port": "8600"
+  },
+  {
+    "enum_name": "EXTERNAL_G17H",
+    "code": "extg17h",
+    "display_name": "External_G17H",
+    "port": "5023"
+  },
+  {
+    "enum_name": "EXTERNAL_WANWAY",
+    "code": "extWnwy",
+    "display_name": "External_Wanway",
+    "port": "5023"
+  },
+  {
+    "enum_name": "BLACKROCK_ASSET",
+    "code": "extBrA",
+    "display_name": "Blackrock_Asset",
+    "port": "5023"
+  },
+  {
+    "enum_name": "HUABAO_2",
+    "code": "hubo2",
+    "display_name": "Huabao-2",
+    "port": "8631"
+  },
+  {
+    "enum_name": "SUNTECH",
+    "code": "sntch",
+    "display_name": "Suntech",
+    "port": "8649"
+  },
+  {
+    "enum_name": "CAL_AMP",
+    "code": "calamp",
+    "display_name": "Cal/Amp",
+    "port": "8650"
+  },
+  {
+    "enum_name": "VT_08S",
+    "code": "vt08s",
+    "display_name": "VT-08S",
+    "port": "5023"
+  },
+  {
+    "enum_name": "VT_05R",
+    "code": "vt05r",
+    "display_name": "VT-05R",
+    "port": "5023"
+  },
+  {
+    "enum_name": "H5",
+    "code": "h5",
+    "display_name": "H5",
+    "port": "0"
+  },
+  {
+    "enum_name": "PS07",
+    "code": "ps07",
+    "display_name": "PS07",
+    "port": "5023"
+  },
+  {
+    "enum_name": "VL300",
+    "code": "vl300",
+    "display_name": "VL300",
+    "port": "8631"
+  },
+  {
+    "enum_name": "TZONE",
+    "code": "tzone",
+    "display_name": "TZONE",
+    "port": "8651"
+  },
+  {
+    "enum_name": "ALITE",
+    "code": "alte",
+    "display_name": "ALITE",
+    "port": "5023"
+  },
+  {
+    "enum_name": "BLACKROCK",
+    "code": "blrk",
+    "display_name": "Blackrock",
+    "port": "5023"
+  },
+  {
+    "enum_name": "GPS_PUSH",
+    "code": "gpsPush",
+    "display_name": "GPS Push",
+    "port": "0"
+  },
+  {
+    "enum_name": "MOBILE",
+    "code": "mbl",
+    "display_name": "MOBILE",
+    "port": "0"
+  },
+  {
+    "enum_name": "PG201",
+    "code": "pg201",
+    "display_name": "PG201",
+    "port": "5023"
+  },
+  {
+    "enum_name": "CRG_140",
+    "code": "crg140",
+    "display_name": "CRG-140",
+    "port": "8600"
+  },
+  {
+    "enum_name": "ALITE_AC",
+    "code": "alteAc",
+    "display_name": "ALITE-AC",
+    "port": "5023"
+  },
+  {
+    "enum_name": "SK05",
+    "code": "sk05",
+    "display_name": "SK05",
+    "port": "5023"
+  },
+  {
+    "enum_name": "GS_07",
+    "code": "gs07",
+    "display_name": "GS-07",
+    "port": "5023"
+  },
+  {
+    "enum_name": "WETRACK_NIC_140_LOAD",
+    "code": "wetrkNic140Ld",
+    "display_name": "WeTrack-Nic-140-Load",
+    "port": "8600"
+  },
+  {
+    "enum_name": "BR_06",
+    "code": "br06",
+    "display_name": "BR-06",
+    "port": "5023"
+  },
+  {
+    "enum_name": "PS10G",
+    "code": "ps10g",
+    "display_name": "PS-10G",
+    "port": "8505"
+  },
+  {
+    "enum_name": "LG_300",
+    "code": "lg300",
+    "display_name": "LG-300",
+    "port": "5023"
+  },
+  {
+    "enum_name": "TMT250",
+    "code": "tmt250",
+    "display_name": "TMT250",
+    "port": "8501"
+  },
+  {
+    "enum_name": "GH5200",
+    "code": "gh5200",
+    "display_name": "GH5200",
+    "port": "8501"
+  },
+  {
+    "enum_name": "SINOCASTEL",
+    "code": "sntl",
+    "display_name": "Sinocastel",
+    "port": "8652"
+  },
+  {
+    "enum_name": "MOBILFOX_ADVANCE",
+    "code": "mbladv",
+    "display_name": "Mobilfox_Advance",
+    "port": "5023"
+  },
+  {
+    "enum_name": "CONCOX_JC400",
+    "code": "cxjc400",
+    "display_name": "Concox JC400",
+    "port": "8595"
+  },
+  {
+    "enum_name": "WIALON",
+    "code": "wln",
+    "display_name": "Wialon",
+    "port": "8653"
+  },
+  {
+    "enum_name": "TOPTEN",
+    "code": "totn",
+    "display_name": "Topten",
+    "port": "8630"
+  },
+  {
+    "enum_name": "NEOMATICA",
+    "code": "nmcta",
+    "display_name": "NeoMatica",
+    "port": "8638"
+  },
+  {
+    "enum_name": "TRAQLOCK02",
+    "code": "trqlk2",
+    "display_name": "Traq_lock_02",
+    "port": "8616"
+  },
+  {
+    "enum_name": "NAVI_140",
+    "code": "nvi140",
+    "display_name": "NAVI_140",
+    "port": "8600"
+  },
+  {
+    "enum_name": "JM_VL03",
+    "code": "jmVl3",
+    "display_name": "JM_VL03",
+    "port": "5023"
+  },
+  {
+    "enum_name": "G18_2G",
+    "code": "g182g",
+    "display_name": "G18-2G",
+    "port": "5023"
+  },
+  {
+    "enum_name": "TRAXSMART_AIS140",
+    "code": "trxsrtas140",
+    "display_name": "TRAXSMART-AIS140",
+    "port": "8600"
+  },
+  {
+    "enum_name": "A_TRACK",
+    "code": "atck",
+    "display_name": "A-Track",
+    "port": "8647"
+  },
+  {
+    "enum_name": "S5L",
+    "code": "s5l",
+    "display_name": "S5L",
+    "port": "5023"
+  },
+  {
+    "enum_name": "VL149",
+    "code": "vl149",
+    "display_name": "VL149",
+    "port": "5023"
+  },
+  {
+    "enum_name": "AUTOCOP",
+    "code": "acp",
+    "display_name": "Autocop",
+    "port": "8655"
+  },
+  {
+    "enum_name": "TNAVIC_AIS140_4G",
+    "code": "tnvais",
+    "display_name": "tnavIC AIS140 4G",
+    "port": "8600"
+  },
+  {
+    "enum_name": "HL_TECH_ADVANCE",
+    "code": "hltchadv",
+    "display_name": "HL-TECH-ADVANCE",
+    "port": "5023"
+  },
+  {
+    "enum_name": "E_TRANS_DARSH_LITE",
+    "code": "etdlite",
+    "display_name": "E Trans Darsh Lite",
+    "port": "8600"
+  },
+  {
+    "enum_name": "G11",
+    "code": "g11",
+    "display_name": "G11",
+    "port": "5023"
+  },
+  {
+    "enum_name": "RP_APOLLO",
+    "code": "aplo",
+    "display_name": "RP_Apollo",
+    "port": "8600"
+  },
+  {
+    "enum_name": "HL_TECH_BR_SERIES",
+    "code": "hltchbrs",
+    "display_name": "HL-TECH-BR_SERIES",
+    "port": "5023"
+  },
+  {
+    "enum_name": "ULTNAV_GPS",
+    "code": "ultnvgps",
+    "display_name": "ULTNAV_GPS",
+    "port": "5023"
+  },
+  {
+    "enum_name": "TK903",
+    "code": "tk903",
+    "display_name": "TK903",
+    "port": "8001"
+  },
+  {
+    "enum_name": "PRIME09",
+    "code": "prm09",
+    "display_name": "Prime09",
+    "port": "5023"
+  },
+  {
+    "enum_name": "XYZ1",
+    "code": "xyz1",
+    "display_name": "XYZ1",
+    "port": "8001"
+  },
+  {
+    "enum_name": "VL110C",
+    "code": "vl110c",
+    "display_name": "VL110C",
+    "port": "5023"
+  },
+  {
+    "enum_name": "G08L",
+    "code": "go8l",
+    "display_name": "G08L",
+    "port": "8631"
+  },
+  {
+    "enum_name": "P901",
+    "code": "p901",
+    "display_name": "P901",
+    "port": "8631"
+  },
+  {
+    "enum_name": "QTGPS01",
+    "code": "qtgs01",
+    "display_name": "QTGPS01",
+    "port": "5023"
+  },
+  {
+    "enum_name": "TK915",
+    "code": "tk915",
+    "display_name": "TK915",
+    "port": "8599"
+  },
+  {
+    "enum_name": "ECO2GE",
+    "code": "eco2ge",
+    "display_name": "ECO2GE",
+    "port": "8600"
+  },
+  {
+    "enum_name": "TOTARGET",
+    "code": "totr",
+    "display_name": "TOTARGET",
+    "port": "8631"
+  },
+  {
+    "enum_name": "ACUTE_AIS_140",
+    "code": "acutais140",
+    "display_name": "ACUTE-AIS-140",
+    "port": "8600"
+  },
+  {
+    "enum_name": "NAVI_140_LOCK",
+    "code": "nvi140lck",
+    "display_name": "NAVI_140_LOCK",
+    "port": "8600"
+  },
+  {
+    "enum_name": "TB_DASHCAM",
+    "code": "tbdc",
+    "display_name": "TB_Dashcam",
+    "port": "8631"
+  }
+]

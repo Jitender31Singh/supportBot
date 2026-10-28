@@ -28,11 +28,12 @@ class FakeVehicleApiClient:
             return self.snapshot
         return VehicleSnapshot(
             vehicle_no=vehicle_no,
+            state="unreachable",
             device_type="Concox V5",
-            port=8503,
+            port=5023,
             vehicle_status="Active",
             device_status="Active",
-            minutes_since_last_update=2.0,
+            minutes_since_last_update=15.0,
             last_update=datetime.now(timezone.utc),
             since=datetime.now(timezone.utc),
             hours_since_status=1.0,
@@ -87,10 +88,12 @@ def test_missing_port_escalates_to_human_handoff(tmp_path: Path):
         "vehicle_no": "HR85G2799",
         "vehicle_snapshot": {
             "vehicle_no": "HR85G2799",
+            "state": "unreachable",
             "device_type": "Concox V5",
             "port": None,  # Missing port
             "vehicle_status": "Active",
             "device_status": "Active",
+            "minutes_since_last_update": 15.0,
         },
         "awaiting": "none",
     }
@@ -107,10 +110,12 @@ def test_missing_device_type_escalates(tmp_path: Path):
         "vehicle_no": "HR85G2799",
         "vehicle_snapshot": {
             "vehicle_no": "HR85G2799",
+            "state": "unreachable",
             "device_type": "",  # Missing device type
-            "port": 8503,
+            "port": 5023,
             "vehicle_status": "Active",
             "device_status": "Active",
+            "minutes_since_last_update": 15.0,
         },
         "awaiting": "none",
     }
@@ -119,68 +124,156 @@ def test_missing_device_type_escalates(tmp_path: Path):
     assert result["handoff_reason"] == "missing_device_type"
 
 
-def test_port_confirmation_flow_prompt_and_reply(tmp_path: Path):
+def test_fresh_or_non_unreachable_bypasses_port_and_device_checks(tmp_path: Path):
     runtime, _ = _create_test_runtime(tmp_path)
     node = make_check_config_node(runtime)
-    snapshot = {
+
+    # Case 1: Device is Idle and fresh (minutes=2.0)
+    snapshot_idle = {
         "vehicle_no": "HR85G2799",
+        "state": "Idle",
+        "device_type": "Concox V5",
+        "port": 8503,  # Even if mismatched, should bypass because state != unreachable
+        "vehicle_status": "Active",
+        "device_status": "Active",
+        "minutes_since_last_update": 2.0,
+    }
+    res_idle = node({"vehicle_no": "HR85G2799", "vehicle_snapshot": snapshot_idle, "awaiting": "none"})
+    assert res_idle["config_port_status"] == ValidationStatus.VALID.value
+    assert res_idle["config_device_type_status"] == ValidationStatus.VALID.value
+    assert res_idle["awaiting"] == "none"
+
+    # Case 2: Device is unreachable but fresh (minutes <= 10.0)
+    snapshot_fresh_unreachable = {
+        "vehicle_no": "HR85G2799",
+        "state": "unreachable",
         "device_type": "Concox V5",
         "port": 8503,
         "vehicle_status": "Active",
         "device_status": "Active",
-        "minutes_since_last_update": 3.0,
+        "minutes_since_last_update": 4.0,
+    }
+    res_fresh = node({"vehicle_no": "HR85G2799", "vehicle_snapshot": snapshot_fresh_unreachable, "awaiting": "none"})
+    assert res_fresh["config_port_status"] == ValidationStatus.VALID.value
+    assert res_fresh["config_device_type_status"] == ValidationStatus.VALID.value
+
+
+def test_unreachable_stale_device_type_rejected_escalates(tmp_path: Path):
+    runtime, _ = _create_test_runtime(tmp_path)
+    node = make_check_config_node(runtime)
+    snapshot = {
+        "vehicle_no": "HR85G2799",
+        "state": "unreachable",
+        "device_type": "Concox V5",
+        "port": 5023,
+        "vehicle_status": "Active",
+        "device_status": "Active",
+        "minutes_since_last_update": 15.0,
     }
 
-    # Step 1: Prompt for port confirmation
+    # Turn 1: Bot asks for device model confirmation
     state1 = {"vehicle_no": "HR85G2799", "vehicle_snapshot": snapshot, "awaiting": "none"}
     res1 = node(state1)
-    assert res1["awaiting"] == "config_port_confirm"
-    assert "port 8503" in res1["response"]
+    assert res1["awaiting"] == "config_device_type_confirm"
+    assert "Concox V5" in res1["response"]
 
-    # Step 2: Client rejects port ("no, it is 8504") -> escalates without fabricating change
+    # Turn 2: User rejects device model -> escalates to support
     state2 = {
         "vehicle_no": "HR85G2799",
         "vehicle_snapshot": snapshot,
-        "awaiting": "config_port_confirm",
-        "last_user_message": "no, it is 8504",
+        "awaiting": "config_device_type_confirm",
+        "last_user_message": "no, my device is Teltonika",
     }
     res2 = node(state2)
     assert res2["current_step"] == "human_handoff"
-    assert res2["handoff_reason"] == "incorrect_port_reconfiguration_required"
+    assert res2["handoff_reason"] == "incorrect_device_type_reconfiguration_required"
 
-    # Step 3: Client confirms port ("yes") -> moves to device type confirmation
+
+def test_unreachable_stale_port_mismatch_instructs_user_to_fix(tmp_path: Path):
+    runtime, _ = _create_test_runtime(tmp_path)
+    node = make_check_config_node(runtime)
+    # Master registry for Concox V5 expects port 5023, but vehicle has 8503
+    snapshot = {
+        "vehicle_no": "HR85G2799",
+        "state": "unreachable",
+        "device_type": "Concox V5",
+        "port": 8503,
+        "vehicle_status": "Active",
+        "device_status": "Active",
+        "minutes_since_last_update": 15.0,
+    }
+
+    # Turn 1: Asks to confirm device type
+    state1 = {"vehicle_no": "HR85G2799", "vehicle_snapshot": snapshot, "awaiting": "none"}
+    res1 = node(state1)
+    assert res1["awaiting"] == "config_device_type_confirm"
+
+    # Turn 2: Client confirms device type -> bot identifies port mismatch (8503 vs 5023)
+    state2 = {
+        "vehicle_no": "HR85G2799",
+        "vehicle_snapshot": snapshot,
+        "awaiting": "config_device_type_confirm",
+        "last_user_message": "yes, it is Concox V5",
+    }
+    res2 = node(state2)
+    assert res2["awaiting"] == "config_port_fix_confirm"
+    assert "8503" in res2["response"]
+    assert "5023" in res2["response"]
+    assert "SERVER,0,52.74.44.145,5023,0#" in res2["response"]
+    assert "Please fix the port configuration" in res2["response"]
+
+    # Turn 3: User confirms they fixed the port -> proceeds to valid port status
+    state3 = {
+        "vehicle_no": "HR85G2799",
+        "vehicle_snapshot": snapshot,
+        "awaiting": "config_port_fix_confirm",
+        "last_user_message": "done, I have updated the port",
+        "config_device_type_status": ValidationStatus.VALID.value,
+    }
+    res3 = node(state3)
+    assert res3["config_port_status"] == ValidationStatus.VALID.value
+
+
+def test_unreachable_stale_port_matching_flow(tmp_path: Path):
+    runtime, _ = _create_test_runtime(tmp_path)
+    node = make_check_config_node(runtime)
+    # Port 5023 matches master registry for Concox V5
+    snapshot = {
+        "vehicle_no": "HR85G2799",
+        "state": "unreachable",
+        "device_type": "Concox V5",
+        "port": 5023,
+        "vehicle_status": "Active",
+        "device_status": "Active",
+        "minutes_since_last_update": 15.0,
+    }
+
+    # Turn 1: Device type confirmation
+    state1 = {"vehicle_no": "HR85G2799", "vehicle_snapshot": snapshot, "awaiting": "none"}
+    res1 = node(state1)
+    assert res1["awaiting"] == "config_device_type_confirm"
+
+    # Turn 2: User confirms device type -> bot asks port confirmation
+    state2 = {
+        "vehicle_no": "HR85G2799",
+        "vehicle_snapshot": snapshot,
+        "awaiting": "config_device_type_confirm",
+        "last_user_message": "yes",
+    }
+    res2 = node(state2)
+    assert res2["awaiting"] == "config_port_confirm"
+    assert "port 5023" in res2["response"]
+
+    # Turn 3: User confirms port -> port marked valid
     state3 = {
         "vehicle_no": "HR85G2799",
         "vehicle_snapshot": snapshot,
         "awaiting": "config_port_confirm",
         "last_user_message": "yes, correct",
+        "config_device_type_status": ValidationStatus.VALID.value,
     }
     res3 = node(state3)
     assert res3["config_port_status"] == ValidationStatus.VALID.value
-    # Does not automatically validate device type!
-    assert res3.get("config_device_type_status") is None
-
-
-def test_device_type_rejected_escalates(tmp_path: Path):
-    runtime, _ = _create_test_runtime(tmp_path)
-    node = make_check_config_node(runtime)
-    snapshot = {
-        "vehicle_no": "HR85G2799",
-        "device_type": "Concox V5",
-        "port": 8503,
-        "vehicle_status": "Active",
-        "device_status": "Active",
-    }
-    state = {
-        "vehicle_no": "HR85G2799",
-        "vehicle_snapshot": snapshot,
-        "config_port_status": ValidationStatus.VALID.value,
-        "awaiting": "config_device_type_confirm",
-        "last_user_message": "no, my device is Teltonika",
-    }
-    res = node(state)
-    assert res["current_step"] == "human_handoff"
-    assert res["handoff_reason"] == "incorrect_device_type_reconfiguration_required"
 
 
 def test_inactive_vehicle_with_expired_subscription_uses_rag(tmp_path: Path):
@@ -332,11 +425,12 @@ def test_stale_lu_runs_diagnostics_and_safely_escalates_when_unavailable(tmp_pat
 def test_full_graph_check_config_preserves_symptom_context(tmp_path: Path):
     snap_fresh = VehicleSnapshot(
         vehicle_no="HR85G2799",
+        state="unreachable",
         device_type="Concox V5",
-        port=8503,
+        port=5023,
         vehicle_status="Active",
         device_status="Active",
-        minutes_since_last_update=1.5,
+        minutes_since_last_update=15.0,
         last_update=datetime.now(timezone.utc),
         since=datetime.now(timezone.utc),
         hours_since_status=0.5,
@@ -359,18 +453,18 @@ def test_full_graph_check_config_preserves_symptom_context(tmp_path: Path):
     result1 = graph.invoke(state1, config={"configurable": {"thread_id": record["session_id"]}})
     store.save_graph_result(record["session_id"], result1)
 
-    # Reaches check_config and asks for port confirmation
-    assert result1["awaiting"] == "config_port_confirm"
-    assert "port 8503" in result1["response"]
+    # Reaches check_config and asks for device type confirmation
+    assert result1["awaiting"] == "config_device_type_confirm"
+    assert "Concox V5" in result1["response"]
     # Verify symptom context is preserved
     assert "AC" in result1["symptoms"]["summary"] or "AC" in result1["symptoms"]["raw_user_message"]
 
-    # Turn 2: Confirm port
+    # Turn 2: Confirm device type
     state2 = store.state_for(record["session_id"])
     state2.update({
         "session_id": record["session_id"],
-        "messages": list(result1["messages"]) + [HumanMessage(content="yes, port is correct", id="m2")],
-        "last_user_message": "yes, port is correct",
+        "messages": list(result1["messages"]) + [HumanMessage(content="yes that is my device", id="m2")],
+        "last_user_message": "yes that is my device",
         "response": "",
         "sources": [],
         "target_frame_id": None,
@@ -379,16 +473,16 @@ def test_full_graph_check_config_preserves_symptom_context(tmp_path: Path):
     result2 = graph.invoke(state2, config={"configurable": {"thread_id": record["session_id"]}})
     store.save_graph_result(record["session_id"], result2)
 
-    # Next check: asks for device type confirmation
-    assert result2["awaiting"] == "config_device_type_confirm"
-    assert "Concox V5" in result2["response"]
+    # Next check: asks for port confirmation
+    assert result2["awaiting"] == "config_port_confirm"
+    assert "5023" in result2["response"]
 
-    # Turn 3: Confirm device type
+    # Turn 3: Confirm port
     state3 = store.state_for(record["session_id"])
     state3.update({
         "session_id": record["session_id"],
-        "messages": list(result2["messages"]) + [HumanMessage(content="yes that is my device", id="m3")],
-        "last_user_message": "yes that is my device",
+        "messages": list(result2["messages"]) + [HumanMessage(content="yes, port is correct", id="m3")],
+        "last_user_message": "yes, port is correct",
         "response": "",
         "sources": [],
         "target_frame_id": None,
@@ -397,11 +491,8 @@ def test_full_graph_check_config_preserves_symptom_context(tmp_path: Path):
     result3 = graph.invoke(state3, config={"configurable": {"thread_id": record["session_id"]}})
     store.save_graph_result(record["session_id"], result3)
 
-    # Since lu is fresh (1.5 mins), check_config validates and routes directly to fault_classifier!
-    # Original symptom context survived the multi-turn config checks
     assert result3["config_port_status"] == ValidationStatus.VALID.value
     assert result3["config_device_type_status"] == ValidationStatus.VALID.value
-    assert result3["lu_status"] == ValidationStatus.VALID.value
 
 
 @pytest.mark.parametrize("query", [
@@ -413,11 +504,12 @@ def test_full_graph_check_config_preserves_symptom_context(tmp_path: Path):
 def test_vehicle_queries_reach_check_config_node(tmp_path: Path, query: str):
     snap = VehicleSnapshot(
         vehicle_no="HR85G2799",
+        state="unreachable",
         device_type="Concox V5",
-        port=8503,
+        port=5023,
         vehicle_status="Active",
         device_status="Active",
-        minutes_since_last_update=2.0,
+        minutes_since_last_update=15.0,
         last_update=datetime.now(timezone.utc),
         since=datetime.now(timezone.utc),
         hours_since_status=1.0,
@@ -442,16 +534,17 @@ def test_vehicle_queries_reach_check_config_node(tmp_path: Path, query: str):
     # Must NOT route to show_device_commands or rag_answer
     assert "Please specify the device type you would like commands for" not in result["response"]
     assert "The current knowledge base does not contain an approved answer" not in result["response"]
-    # Must reach check_config and ask about port confirmation
-    assert result["awaiting"] == "config_port_confirm"
-    assert "port 8503" in result["response"]
+    # Must reach check_config and ask about device type confirmation
+    assert result["awaiting"] == "config_device_type_confirm"
+    assert "Concox V5" in result["response"]
 
 
 def test_check_config_completion_summarizes_when_no_issue(tmp_path: Path):
     snap = VehicleSnapshot(
         vehicle_no="HR85G2799",
+        state="Idle",
         device_type="Concox V5",
-        port=8503,
+        port=5023,
         vehicle_status="Active",
         device_status="Active",
         minutes_since_last_update=2.0,
@@ -467,7 +560,7 @@ def test_check_config_completion_summarizes_when_no_issue(tmp_path: Path):
     graph = build_graph(runtime)
     record = store.create_session()
 
-    # Turn 1: user asks to check configuration
+    # Turn 1: user asks to check configuration for an active, fresh vehicle
     state1 = store.state_for(record["session_id"])
     state1.update({
         "session_id": record["session_id"],
@@ -481,47 +574,14 @@ def test_check_config_completion_summarizes_when_no_issue(tmp_path: Path):
     result1 = graph.invoke(state1, config={"configurable": {"thread_id": record["session_id"]}})
     store.save_graph_result(record["session_id"], result1)
 
-    assert result1["awaiting"] == "config_port_confirm"
-    assert "port 8503" in result1["response"]
-
-    # Turn 2: confirm port
-    state2 = store.state_for(record["session_id"])
-    state2.update({
-        "session_id": record["session_id"],
-        "messages": list(result1["messages"]) + [HumanMessage(content="yes", id="m2")],
-        "last_user_message": "yes",
-        "response": "",
-        "sources": [],
-        "target_frame_id": None,
-        "pending_intents": [],
-    })
-    result2 = graph.invoke(state2, config={"configurable": {"thread_id": record["session_id"]}})
-    store.save_graph_result(record["session_id"], result2)
-
-    assert result2["awaiting"] == "config_device_type_confirm"
-    assert "Concox V5" in result2["response"]
-
-    # Turn 3: confirm device type
-    state3 = store.state_for(record["session_id"])
-    state3.update({
-        "session_id": record["session_id"],
-        "messages": list(result2["messages"]) + [HumanMessage(content="yes", id="m3")],
-        "last_user_message": "yes",
-        "response": "",
-        "sources": [],
-        "target_frame_id": None,
-        "pending_intents": [],
-    })
-    result3 = graph.invoke(state3, config={"configurable": {"thread_id": record["session_id"]}})
-
     # Must NOT ask "Is the tracking issue resolved now?"
-    assert "Is the tracking issue resolved now" not in result3["response"]
+    assert "Is the tracking issue resolved now" not in result1["response"]
     # Must report configuration & status summary confirming everything looks fine
-    assert "Configuration & Status Summary" in result3["response"]
-    assert "Everything looks fine" in result3["response"] or "working properly" in result3["response"]
-    assert "8503" in result3["response"]
-    assert "Concox V5" in result3["response"]
-    assert result3["awaiting"] == "none"
+    assert "Configuration & Status Summary" in result1["response"]
+    assert "Everything looks fine" in result1["response"] or "working properly" in result1["response"]
+    assert "5023" in result1["response"]
+    assert "Concox V5" in result1["response"]
+    assert result1["awaiting"] == "none"
 
 
 def test_switching_vehicle_number_during_active_workflow(tmp_path: Path):
@@ -544,7 +604,7 @@ def test_switching_vehicle_number_during_active_workflow(tmp_path: Path):
     store.save_graph_result(record["session_id"], result1)
 
     assert result1["vehicle_no"] == "HR85G2799"
-    assert result1["awaiting"] == "config_port_confirm"
+    assert result1["awaiting"] == "config_device_type_confirm"
 
     # Turn 2: user says they are asking about another vehicle HR85G2791
     state2 = store.state_for(record["session_id"])
@@ -618,7 +678,20 @@ def test_colloquial_affirmation_and_negative_in_config(tmp_path: Path):
 
 
 def test_buffering_issue_does_not_falsely_resolve(tmp_path: Path):
-    runtime, store = _create_test_runtime(tmp_path)
+    snap = VehicleSnapshot(
+        vehicle_no="HR85G2799",
+        state="Idle",
+        device_type="Concox V5",
+        port=5023,
+        vehicle_status="Active",
+        device_status="Active",
+        minutes_since_last_update=2.0,
+        last_update=datetime.now(timezone.utc),
+        since=datetime.now(timezone.utc),
+        hours_since_status=1.0,
+        imei="355172108792241",
+    )
+    runtime, store = _create_test_runtime(tmp_path, vehicle_client=FakeVehicleApiClient(snap))
     graph = build_graph(runtime)
     record = store.create_session()
 
@@ -634,10 +707,35 @@ def test_buffering_issue_does_not_falsely_resolve(tmp_path: Path):
         "pending_intents": [],
     })
     result1 = graph.invoke(state1, config={"configurable": {"thread_id": record["session_id"]}})
+
+    # Config sanity passed without bothering client, telemetry is fresh (2 mins), but user reported "buffering"
+    # It must NOT say "No configuration or tracking faults were detected" or mark resolved=True
+    assert not result1.get("resolved")
+    assert result1.get("fault_category") == "software_issue"
+    assert result1.get("ticket_info") is not None
+    assert result1["ticket_info"]["status"] == "created"
+
+
+def test_colloquial_affirmation_in_unreachable_config_flow(tmp_path: Path):
+    runtime, store = _create_test_runtime(tmp_path)
+    graph = build_graph(runtime)
+    record = store.create_session()
+
+    # Turn 1: user reports location issue for unreachable vehicle
+    state1 = store.state_for(record["session_id"])
+    state1.update({
+        "session_id": record["session_id"],
+        "messages": [HumanMessage(content="vehicle HR85G2799 is unreachable", id="m1")],
+        "last_user_message": "vehicle HR85G2799 is unreachable",
+        "response": "",
+        "sources": [],
+        "target_frame_id": None,
+        "pending_intents": [],
+    })
+    result1 = graph.invoke(state1, config={"configurable": {"thread_id": record["session_id"]}})
     store.save_graph_result(record["session_id"], result1)
 
-    # In turn 1 it asks to confirm port
-    assert result1["awaiting"] == "config_port_confirm"
+    assert result1["awaiting"] == "config_device_type_confirm"
 
     # Turn 2: user replies with colloquial 'yeaaah'
     state2 = store.state_for(record["session_id"])
@@ -653,8 +751,7 @@ def test_buffering_issue_does_not_falsely_resolve(tmp_path: Path):
     result2 = graph.invoke(state2, config={"configurable": {"thread_id": record["session_id"]}})
     store.save_graph_result(record["session_id"], result2)
 
-    # It should accept 'yeaaah' and move to model confirmation (not re-prompt port confirmation)
-    assert result2["awaiting"] == "config_device_type_confirm"
+    assert result2["awaiting"] == "config_port_confirm"
 
     # Turn 3: user replies with colloquial 'yeahhhhhh'
     state3 = store.state_for(record["session_id"])
@@ -668,9 +765,6 @@ def test_buffering_issue_does_not_falsely_resolve(tmp_path: Path):
         "pending_intents": [],
     })
     result3 = graph.invoke(state3, config={"configurable": {"thread_id": record["session_id"]}})
-    store.save_graph_result(record["session_id"], result3)
 
-    # Config sanity passed, telemetry is fresh (2 mins), but user reported "buffering"
-    # It must NOT say "No configuration or tracking faults were detected" or mark resolved=True
-    assert not result3.get("resolved")
-    assert result3.get("fault_category") == "software_issue"
+    assert result3["config_port_status"] == ValidationStatus.VALID.value
+    assert result3["config_device_type_status"] == ValidationStatus.VALID.value
