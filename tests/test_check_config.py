@@ -792,3 +792,81 @@ def test_colloquial_affirmation_in_unreachable_config_flow(tmp_path: Path):
 
     assert result3["config_port_status"] == ValidationStatus.VALID.value
     assert result3["config_device_type_status"] == ValidationStatus.VALID.value
+
+
+def test_overspeeding_state_missing_speeding_threshold_escalates(tmp_path: Path):
+    runtime, _ = _create_test_runtime(tmp_path)
+    node = make_check_config_node(runtime)
+    snapshot = {
+        "vehicle_no": "HR85G2799",
+        "state": "Overspeeding",
+        "device_type": "Concox V5",
+        "port": 5023,
+        "vehicle_status": "Active",
+        "device_status": "Active",
+        "minutes_since_last_update": 2.0,
+        "speed": 75.0,
+        "speeding_threshold": None,  # Missing threshold in API
+    }
+    state = {
+        "vehicle_no": "HR85G2799",
+        "vehicle_snapshot": snapshot,
+        "awaiting": "none",
+    }
+    res = node(state)
+    assert res["current_step"] == "human_handoff"
+    assert res["handoff_reason"] == "missing_speeding_threshold"
+    assert res["speeding_threshold_status"] == ValidationStatus.INVALID.value
+    assert "no speeding threshold" in res["response"].lower() or "speed limit" in res["response"].lower()
+
+
+def test_overspeeding_state_speed_below_threshold_escalates(tmp_path: Path):
+    runtime, _ = _create_test_runtime(tmp_path)
+    node = make_check_config_node(runtime)
+    snapshot = {
+        "vehicle_no": "HR85G2799",
+        "state": "Overspeeding",
+        "device_type": "Concox V5",
+        "port": 5023,
+        "vehicle_status": "Active",
+        "device_status": "Active",
+        "minutes_since_last_update": 2.0,
+        "speed": 45.0,
+        "speeding_threshold": 80.0,  # Speed 45 <= threshold 80: Anomaly!
+    }
+    state = {
+        "vehicle_no": "HR85G2799",
+        "vehicle_snapshot": snapshot,
+        "awaiting": "none",
+    }
+    res = node(state)
+    assert res["current_step"] == "human_handoff"
+    assert res["handoff_reason"] == "overspeeding_state_below_threshold"
+    assert res["speeding_threshold_status"] == ValidationStatus.INVALID.value
+    assert "45" in res["response"]
+    assert "80" in res["response"]
+
+
+def test_overspeeding_state_speed_above_threshold_validates(tmp_path: Path):
+    runtime, _ = _create_test_runtime(tmp_path)
+    node = make_check_config_node(runtime)
+    snapshot = {
+        "vehicle_no": "HR85G2799",
+        "state": "Overspeeding",
+        "device_type": "Concox V5",
+        "port": 5023,
+        "vehicle_status": "Active",
+        "device_status": "Active",
+        "minutes_since_last_update": 2.0,
+        "speed": 85.0,
+        "speeding_threshold": 60.0,  # Speed 85 > threshold 60: Valid overspeeding
+    }
+    state = {
+        "vehicle_no": "HR85G2799",
+        "vehicle_snapshot": snapshot,
+        "awaiting": "none",
+    }
+    res = node(state)
+    # Validates speeding threshold and moves forward to fault_classifier
+    assert res["speeding_threshold_status"] == ValidationStatus.VALID.value
+    assert res["current_step"] == "fault_classifier"

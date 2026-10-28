@@ -122,6 +122,8 @@ class VehicleSnapshot(BaseModel):
     since: datetime | None = None
     hours_since_status: float | None = None
     days_since_status: float | None = None
+    speed: float | int | None = None
+    speeding_threshold: float | int | None = None
     raw_payload: dict[str, Any] = Field(default_factory=dict)
 
 class CommandSpec(BaseModel):

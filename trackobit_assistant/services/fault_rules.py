@@ -27,6 +27,22 @@ def classify_fault(snapshot: dict[str, Any] | None, dashboard_evidence: str | No
     except (ValueError, TypeError): minutes = None
     state = str(snapshot.get('state') or '').casefold()
     dashboard = (dashboard_evidence or '').casefold()
+
+    if 'overspeed' in state:
+        thresh = snapshot.get('speeding_threshold') or snapshot.get('speedingThreshold') or snapshot.get('speedLimit')
+        speed = snapshot.get('speed')
+        if thresh is not None and speed is not None:
+            try:
+                t_val = float(thresh)
+                s_val = float(speed)
+                if s_val > t_val:
+                    evidence.append(f'Vehicle speed ({s_val} km/h) exceeds configured speeding threshold ({t_val} km/h)')
+                    return FaultResult(category=FaultCategory.NO_ISSUE, confidence=0.85, evidence=evidence)
+                else:
+                    evidence.append(f'Vehicle state is overspeeding but speed ({s_val} km/h) is within threshold ({t_val} km/h)')
+                    return FaultResult(category=FaultCategory.SOFTWARE_ISSUE, confidence=0.88, evidence=evidence)
+            except (ValueError, TypeError):
+                pass
     if minutes is not None and minutes <= freshness_threshold_minutes:
         evidence.append(f'API has a fresh update ({minutes:.1f} minutes ago)')
         software_terms = (

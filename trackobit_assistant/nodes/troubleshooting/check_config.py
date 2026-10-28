@@ -476,7 +476,90 @@ def make_node(runtime: Any):
                 "current_step": "check_config",
             }
 
-        # 4. lu & since Validation
+        # 4. Overspeeding State & Speeding Threshold Check
+        # User Rule: if the state is shown overspeeding then check speeding threshold field in api
+        state_str = str(snapshot_dict.get("state") or "").strip().lower()
+        if "overspeed" in state_str:
+            speeding_threshold = (
+                snapshot_dict.get("speeding_threshold")
+                or snapshot_dict.get("speedingThreshold")
+                or snapshot_dict.get("speed_threshold")
+                or snapshot_dict.get("speedThreshold")
+                or snapshot_dict.get("overspeed_threshold")
+                or snapshot_dict.get("overspeedThreshold")
+                or snapshot_dict.get("speedLimit")
+                or snapshot_dict.get("speed_limit")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speedingThreshold")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speeding_threshold")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speedThreshold")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speed_threshold")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("overspeedThreshold")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("overspeed_threshold")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speedLimit")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speed_limit")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("terminalPacketMeta", {}).get("speedingThreshold")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("terminalPacketMeta", {}).get("speeding_threshold")
+            )
+            try:
+                thresh_val = float(speeding_threshold) if speeding_threshold is not None else None
+            except (ValueError, TypeError):
+                thresh_val = None
+
+            if thresh_val is None or thresh_val <= 0:
+                logger.warning(
+                    f"[CHECK_CONFIG] State is overspeeding but speeding threshold is not configured in API",
+                    extra={"session_id": session_id},
+                )
+                return {
+                    **updates,
+                    "speeding_threshold_status": ValidationStatus.INVALID.value,
+                    "current_step": "human_handoff",
+                    "handoff_reason": "missing_speeding_threshold",
+                    "response": (
+                        f"Vehicle {vehicle_no} is currently showing status 'Overspeeding', but no speeding threshold "
+                        "is configured in system records. Transferring you to support to check the speed limit settings."
+                    ),
+                    "awaiting": "none",
+                }
+
+            current_speed = (
+                snapshot_dict.get("speed")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speed")
+                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("terminalPacketMeta", {}).get("speed")
+            )
+            try:
+                speed_val = float(current_speed) if current_speed is not None else None
+            except (ValueError, TypeError):
+                speed_val = None
+
+            updates["speeding_threshold"] = thresh_val
+            updates["speed"] = speed_val
+
+            if speed_val is not None and speed_val <= thresh_val:
+                logger.warning(
+                    f"[CHECK_CONFIG] State is overspeeding but speed ({speed_val} km/h) does not exceed threshold ({thresh_val} km/h)",
+                    extra={"session_id": session_id},
+                )
+                return {
+                    **updates,
+                    "speeding_threshold_status": ValidationStatus.INVALID.value,
+                    "current_step": "human_handoff",
+                    "handoff_reason": "overspeeding_state_below_threshold",
+                    "response": (
+                        f"Vehicle {vehicle_no} is marked as 'Overspeeding', but its recorded speed ({speed_val} km/h) "
+                        f"is within the configured speeding threshold ({thresh_val} km/h). "
+                        "Transferring you to technical support to investigate this alerting anomaly."
+                    ),
+                    "awaiting": "none",
+                }
+
+            logger.info(
+                f"[CHECK_CONFIG] Overspeeding state verified with API speeding threshold: {thresh_val} km/h (speed: {speed_val} km/h)",
+                extra={"session_id": session_id},
+            )
+            updates["speeding_threshold_status"] = ValidationStatus.VALID.value
+
+        # 5. lu & since Validation
         minutes = snapshot_dict.get("minutes_since_last_update")
         try:
             minutes = float(minutes) if minutes is not None else None

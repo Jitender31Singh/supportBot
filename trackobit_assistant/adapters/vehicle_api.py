@@ -22,7 +22,8 @@ SAMPLE_PAYLOAD = {
     'terminalPacketMeta': {'satellites':15,'batteryConnected':True,'battery':100,'gsmSignals':4,
       'pLoc':[76.87536166666666,30.246713333333336],'e_battery':0,'panic':False,'parked':False,
       'tempered':False,'elockBatteryLow':False,'iccid':'89911025034039635919'},
-    'ignitionNotConnected':False,'ac':False,'port':8503,'ulipVahanStatus':0,'cloudBackup':False,'autoRenewal':False
+    'ignitionNotConnected':False,'ac':False,'port':8503,'ulipVahanStatus':0,'cloudBackup':False,'autoRenewal':False,
+    'speed': 0, 'speedingThreshold': 60
   }
 }
 

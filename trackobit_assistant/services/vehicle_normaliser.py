@@ -52,6 +52,29 @@ def normalise_vehicle_payload(payload: dict[str, Any], fallback_vehicle_no: str,
     hours_since = (now - since.astimezone(ZoneInfo(timezone_name))).total_seconds() / 3600.0 if since else None
     days_since = hours_since / 24.0 if hours_since is not None else None
     port = data.get('port')
+    speeding_threshold = (
+        data.get('speedingThreshold')
+        or data.get('speeding_threshold')
+        or data.get('speedThreshold')
+        or data.get('speed_threshold')
+        or data.get('overspeedThreshold')
+        or data.get('overspeed_threshold')
+        or data.get('speedLimit')
+        or data.get('speed_limit')
+        or meta.get('speedingThreshold')
+        or meta.get('speeding_threshold')
+    )
+    try:
+        speeding_threshold = float(speeding_threshold) if speeding_threshold is not None else None
+    except (ValueError, TypeError):
+        speeding_threshold = None
+
+    speed = data.get('speed') or meta.get('speed')
+    try:
+        speed = float(speed) if speed is not None else None
+    except (ValueError, TypeError):
+        speed = None
+
     return VehicleSnapshot(
         vehicle_no=str(data.get('vehicleNo') or data.get('vehicle_no') or fallback_vehicle_no).replace(' ', '').upper(),
         device_type=data.get('deviceType') or data.get('device_type'), vehicle_type=data.get('vehicleType') or data.get('vehicle_type'),
@@ -63,5 +86,6 @@ def normalise_vehicle_payload(payload: dict[str, Any], fallback_vehicle_no: str,
         subscription_due=due, imei=data.get('imei'), sim_no=data.get('simNo') or data.get('sim_no'),
         operator=data.get('operator'), address=data.get('address'),
         port=port, since=since, hours_since_status=hours_since, days_since_status=days_since,
+        speed=speed, speeding_threshold=speeding_threshold,
         raw_payload=payload,
     )
