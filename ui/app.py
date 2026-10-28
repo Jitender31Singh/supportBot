@@ -301,7 +301,8 @@ else:
                     is_editing = (st.session_state.get('editing_bug_id') == bid)
 
                     if not is_editing:
-                        st.markdown(f"**Severity**: <span style='color:{sev_color};font-weight:700;'>{bsev}</span> &nbsp;|&nbsp; **Status**: `{bstatus}`", unsafe_allow_html=True)
+                        bmod = bug.get('module', 'general')
+                        st.markdown(f"**Severity**: <span style='color:{sev_color};font-weight:700;'>{bsev}</span> &nbsp;|&nbsp; **Status**: `{bstatus}` &nbsp;|&nbsp; **Module**: `{bmod}`", unsafe_allow_html=True)
                         st.markdown(f"**Symptoms / Customer phrasing**: `{bsymptoms}`")
                         st.markdown(f"**Workaround**: {bworkaround}")
                         st.markdown(f"**Estimated Fix**: {beta}")
@@ -334,6 +335,11 @@ else:
                             edit_workaround = st.text_input("Workaround", value=bworkaround if bworkaround != 'None provided' else "")
                             edit_eta = st.text_input("Estimated Fix Time (ETA)", value=beta if beta != 'In progress' else "")
                             
+                            mod_options = ["reports", "live_tracking", "playback", "maintenance", "alerts", "general"]
+                            curr_mod = bug.get('module', 'general')
+                            mod_idx = mod_options.index(curr_mod) if curr_mod in mod_options else 5
+                            edit_mod = st.selectbox("Application Module", mod_options, index=mod_idx, help="Platform module affected by this incident.")
+
                             sev_options = ["Critical", "High", "Medium", "Low"]
                             sev_idx = sev_options.index(bsev) if bsev in sev_options else 2
                             edit_sev = st.selectbox("Severity", sev_options, index=sev_idx)
@@ -360,6 +366,7 @@ else:
                                         "eta": edit_eta.strip(),
                                         "severity": edit_sev,
                                         "status": edit_status,
+                                        "module": edit_mod,
                                     }
                                     try:
                                         res = api_post('/bugs', update_payload)
@@ -385,6 +392,7 @@ else:
                 placeholder="e.g. device is buffering, live map updates delayed, screen freezing, coordinates not advancing",
                 help="Enter natural language phrases that customers might say. Pinecone embeds this for semantic vector search."
             )
+            new_module = st.selectbox("Application Module*", ["reports", "live_tracking", "playback", "maintenance", "alerts", "general"], index=0, help="Specify which platform section/module this incident belongs to.")
             new_workaround = st.text_input("Customer Workaround", placeholder="e.g. Please use the Trackobit Mobile App while web streaming is being patched.")
             new_eta = st.text_input("Estimated Fix Time (ETA)", placeholder="e.g. Today by 3:00 PM IST")
             new_sev = st.selectbox("Severity", ["Critical", "High", "Medium", "Low"], index=2)
@@ -401,7 +409,8 @@ else:
                         "workaround": new_workaround.strip(),
                         "eta": new_eta.strip(),
                         "severity": new_sev,
-                        "status": "active"
+                        "status": "active",
+                        "module": new_module,
                     }
                     try:
                         add_res = api_post('/bugs', payload)
@@ -417,11 +426,15 @@ else:
         st.subheader("🔍 Vector Search Sandbox")
         st.caption("Test how a customer complaint matches known bugs in Pinecone in real-time.")
         test_query = st.text_input("Test customer phrase:", placeholder="e.g. vehicles are lagging behind real-time on dashboard")
+        test_module_filter = st.selectbox("Module Filter (Optional):", ["Any", "reports", "live_tracking", "playback", "maintenance", "alerts"])
         test_thresh = st.slider("Min similarity score", min_value=0.50, max_value=0.95, value=0.65, step=0.01)
         if st.button("Test Search in Pinecone", use_container_width=True):
             if test_query.strip():
                 try:
-                    s_res = api_post('/bugs/search', {"query": test_query.strip(), "min_similarity": test_thresh})
+                    search_payload = {"query": test_query.strip(), "min_similarity": test_thresh}
+                    if test_module_filter != "Any":
+                        search_payload["module"] = test_module_filter
+                    s_res = api_post('/bugs/search', search_payload)
                     if s_res.ok:
                         match = s_res.json().get('match')
                         if match:

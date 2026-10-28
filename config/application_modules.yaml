@@ -1,0 +1,40 @@
+modules:
+  reports:
+    id: "reports"
+    name: "Distance & Travel Reports"
+    description: "Historical trip reports, distance summary reports, stoppage reports, idling analysis, and CSV/Excel exports."
+    explicit_keywords: ["report", "reports", "distance report", "travel report", "stoppage report", "idling report", "csv", "excel", "summary sheet"]
+    common_concepts: ["distance", "mileage", "trips", "stoppage", "idling", "export", "csv", "excel", "sheet", "summary"]
+    clarification_label: "Distance / Travel Reports (Historical report screens & exports)"
+
+  live_tracking:
+    id: "live_tracking"
+    name: "Live Tracking & Dashboard"
+    description: "Real-time vehicle tracking on the live map, vehicle cards, current speed, live odometer, and map markers."
+    explicit_keywords: ["live tracking", "live map", "vehicle card", "dashboard", "on map", "live odometer"]
+    common_concepts: ["distance", "odometer", "speed", "real-time location", "live map", "marker", "buffering", "lag", "not moving"]
+    clarification_label: "Live Tracking Dashboard (Real-time map & vehicle odometer card)"
+
+  playback:
+    id: "playback"
+    name: "Trip History & Route Playback"
+    description: "Route replay player, historical trip polyline, animated vehicle movement over past trips, and route distance."
+    explicit_keywords: ["playback", "play back", "trip replay", "route player", "route replay", "history player", "trip history"]
+    common_concepts: ["distance", "route", "trip replay", "playback", "history player", "polyline", "path"]
+    clarification_label: "Route Playback / Trip History (Route replay player & past trip paths)"
+
+  maintenance:
+    id: "maintenance"
+    name: "Vehicle Service & Maintenance"
+    description: "Distance-based service reminders, odometer service schedules (e.g. oil change at 5,000 km), and service alerts."
+    explicit_keywords: ["maintenance", "service reminder", "service schedule", "oil change", "servicing"]
+    common_concepts: ["distance", "odometer", "service reminder", "maintenance", "oil change", "inspection"]
+    clarification_label: "Vehicle Maintenance (Odometer service reminders & schedules)"
+
+  alerts:
+    id: "alerts"
+    name: "Alerts & Notifications"
+    description: "Geofence alerts, overspeeding alerts, ignition notifications, power disconnection, and SOS alerts."
+    explicit_keywords: ["alert", "alerts", "notification", "notifications", "geofence alert", "overspeed alert", "sos"]
+    common_concepts: ["speed", "geofence", "notification", "battery alert", "disconnect", "sos", "alert"]
+    clarification_label: "Alerts & Notifications (Overspeeding, geofence, or hardware alerts)"

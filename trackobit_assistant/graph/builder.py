@@ -15,13 +15,15 @@ def build_graph(runtime: Runtime):
     graph.add_conditional_edges('intent_parser',routes.route_intent,{
       'greeting_node':'greeting_node','clarify_node':'clarify_node','pause_workflow':'pause_workflow','resume_workflow':'resume_workflow',
       'answer_from_paused':'answer_from_paused','choose_workflow':'choose_workflow','resolution_handler':'resolution_handler',
-      'resume_router':'resume_router','query_classifier':'query_classifier','recap_node':'recap_node'})
+      'resume_router':'resume_router','module_disambiguator':'module_disambiguator','recap_node':'recap_node'})
     graph.add_conditional_edges('resume_router',lambda s:s.get('resume_target','clarify_node'),{
       'validate_vehicle_no':'validate_vehicle_no','ask_vehicle_no':'ask_vehicle_no','update_dashboard_evidence':'update_dashboard_evidence',
       'ask_dashboard_evidence':'ask_dashboard_evidence','recheck_vehicle_info':'recheck_vehicle_info','basic_troubleshooting':'basic_troubleshooting',
       'process_screenshot':'process_screenshot','present_command':'present_command','resolution_handler':'resolution_handler',
       'resolution_check':'resolution_check','resume_chosen_workflow':'resume_chosen_workflow','stale_resume_handler':'stale_resume_handler',
-      'choose_workflow':'choose_workflow','check_config':'check_config','clarify_node':'clarify_node'})
+      'choose_workflow':'choose_workflow','check_config':'check_config','module_disambiguator':'module_disambiguator','clarify_node':'clarify_node'})
+    graph.add_conditional_edges('module_disambiguator',routes.route_after_disambiguator,{
+      'save_session':'save_session','query_classifier':'query_classifier'})
     graph.add_conditional_edges('query_classifier',routes.route_after_query,{
       'rag_answer':'rag_answer','push_frame':'push_frame','clarify_node':'clarify_node','show_device_commands':'show_device_commands','recap_node':'recap_node'})
     graph.add_conditional_edges('recap_node',routes.route_after_recap,{
@@ -66,7 +68,7 @@ def build_graph(runtime: Runtime):
     graph.add_edge('human_handoff','complete_frame')
     graph.add_conditional_edges('complete_frame',routes.route_after_complete,{
       'reminder_footer':'reminder_footer','save_session':'save_session'})
-    graph.add_edge('pause_workflow','query_classifier')
+    graph.add_edge('pause_workflow','module_disambiguator')
     graph.add_conditional_edges('resume_workflow',routes.route_after_resume,{
       'save_session':'save_session','resume_router':'resume_router'})
     graph.add_conditional_edges('stale_resume_handler',routes.route_after_stale_resume,{

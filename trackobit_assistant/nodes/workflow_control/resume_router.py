@@ -21,16 +21,18 @@ def _resume_target(state):
             'config_port_confirm': 'check_config', 'config_device_type_confirm': 'check_config',
             'subscription_renewal_confirm': 'check_config', 'device_activation_confirm': 'check_config',
             'config_move_vehicle': 'check_config',
+            'module_choice': 'module_disambiguator',
         }.get(awaiting, 'clarify_node')
     else:
         target = {
             'vehicle_no': 'validate_vehicle_no', 'dashboard_evidence': 'update_dashboard_evidence',
             'troubleshoot_result': 'recheck_vehicle_info', 'command_screenshot': 'process_screenshot',
             'command_screenshot_text': 'process_screenshot', 'resolution_confirm': 'resolution_handler',
-            'workflow_choice': 'resume_chosen_workflow', 'stale_resume_confirm': 'stale_resume_handler',
+            'workflow_choice': 'resume_chosen_workflow', 'stale_resume_handler': 'stale_resume_handler',
             'config_port_confirm': 'check_config', 'config_device_type_confirm': 'check_config',
             'subscription_renewal_confirm': 'check_config', 'device_activation_confirm': 'check_config',
             'config_move_vehicle': 'check_config',
+            'module_choice': 'module_disambiguator',
         }.get(awaiting, 'clarify_node')
 
     if target == 'clarify_node':
@@ -48,5 +50,11 @@ def _resume_target(state):
 
 def make_node(runtime):
     def node(state):
-        return {'resume_target': _resume_target(state)}
+        session_id = state.get('session_id', '-')
+        target = _resume_target(state)
+        logger.info(
+            f"[RESUME ROUTER] Routing to '{target}' for pending awaiting='{state.get('awaiting')}' (represent={state.get('resume_represent_step')})",
+            extra={'session_id': session_id}
+        )
+        return {'resume_target': target}
     return node

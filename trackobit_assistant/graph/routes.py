@@ -11,17 +11,28 @@ def route_intent(state):
     if intent == 'recap_conversation' or is_recap_query(user_msg):
         logger.info(f"[ROUTER: route_intent] Recap query detected -> routing to 'recap_node'", extra={'session_id': session_id})
         return 'recap_node'
+    if awaiting == 'module_choice':
+        logger.info(f"[ROUTER: route_intent] awaiting='module_choice' -> routing to 'resume_router'", extra={'session_id': session_id})
+        return 'resume_router'
     if intent in {'answers_pending', 'follow_up'} and awaiting in {'none', None, ''}:
-        logger.warning(f"[ROUTER: route_intent] intent='{intent}' but awaiting is '{awaiting}'; re-routing to 'query_classifier'", extra={'session_id': session_id})
-        return 'query_classifier'
+        logger.warning(f"[ROUTER: route_intent] intent='{intent}' but awaiting is '{awaiting}'; re-routing to 'module_disambiguator'", extra={'session_id': session_id})
+        return 'module_disambiguator'
     target = {
       'greeting': 'greeting_node', 'smalltalk': 'greeting_node', 'unclear': 'clarify_node',
       'side_question': 'pause_workflow', 'resume_request': 'resume_workflow', 'references_paused': 'answer_from_paused',
       'ambiguous_target': 'choose_workflow', 'resolution_reply': 'resolution_handler',
-      'answers_pending': 'resume_router', 'follow_up': 'resume_router', 'new_query': 'query_classifier', 'new_workflow': 'pause_workflow', 'recap_conversation': 'recap_node',
-    }.get(intent, 'query_classifier')
+      'answers_pending': 'resume_router', 'follow_up': 'resume_router', 'new_query': 'module_disambiguator', 'new_workflow': 'pause_workflow', 'recap_conversation': 'recap_node',
+    }.get(intent, 'module_disambiguator')
     logger.info(f"[ROUTER: route_intent] intent='{intent}' (conf={state.get('intent_confidence')}) -> routing to '{target}'", extra={'session_id': session_id})
     return target
+
+def route_after_disambiguator(state):
+    session_id = state.get('session_id', '-')
+    if state.get('awaiting') == 'module_choice':
+        logger.info(f"[ROUTER: route_after_disambiguator] Awaiting module choice -> routing to 'save_session'", extra={'session_id': session_id})
+        return 'save_session'
+    logger.info(f"[ROUTER: route_after_disambiguator] Module classified -> routing to 'query_classifier'", extra={'session_id': session_id})
+    return 'query_classifier'
 
 def route_after_query(state):
     session_id = state.get('session_id', '-')

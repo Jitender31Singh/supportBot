@@ -5,6 +5,7 @@ from trackobit_assistant.nodes.intent.intent_parser import make_node as intent_p
 from trackobit_assistant.nodes.intent.greeting_node import make_node as greeting_node
 from trackobit_assistant.nodes.intent.clarify_node import make_node as clarify_node
 from trackobit_assistant.nodes.intent.query_classifier import make_node as query_classifier
+from trackobit_assistant.nodes.intent.module_disambiguator import make_node as module_disambiguator
 from trackobit_assistant.nodes.knowledge.rag_answer import make_node as rag_answer
 from trackobit_assistant.nodes.intake.symptom_analyzer import make_node as symptom_analyzer
 from trackobit_assistant.nodes.intake.ask_vehicle_no import make_node as ask_vehicle_no
@@ -81,9 +82,10 @@ def create_node_registry(runtime: Runtime):
     """Build the node map in one place; nodes remain factory-injected and independently testable."""
     nodes = {
       'load_session':load_session(runtime),'intent_parser':intent_parser(runtime),'greeting_node':greeting_node(runtime),
-      'clarify_node':clarify_node(runtime),'query_classifier':query_classifier(runtime),'rag_answer':rag_answer(runtime),
-      'symptom_analyzer':symptom_analyzer(runtime),'ask_vehicle_no':ask_vehicle_no(runtime),'validate_vehicle_no':validate_vehicle_no(runtime),
-      'fetch_vehicle_info':fetch_vehicle_info(runtime),'check_config':check_config(runtime),'retry_gate':retry_gate(runtime),'fault_classifier':fault_classifier(runtime),
+      'clarify_node':clarify_node(runtime),'module_disambiguator':module_disambiguator(runtime),'query_classifier':query_classifier(runtime),
+      'rag_answer':rag_answer(runtime),'symptom_analyzer':symptom_analyzer(runtime),'ask_vehicle_no':ask_vehicle_no(runtime),
+      'validate_vehicle_no':validate_vehicle_no(runtime),'fetch_vehicle_info':fetch_vehicle_info(runtime),
+      'check_config':check_config(runtime),'retry_gate':retry_gate(runtime),'fault_classifier':fault_classifier(runtime),
       'account_advice':account_advice(runtime),'create_bug_ticket':create_bug_ticket(runtime),'notify_user':notify_user(runtime),
       'basic_troubleshooting':basic_troubleshooting(runtime),'recheck_vehicle_info':recheck_vehicle_info(runtime),
       'ask_dashboard_evidence':ask_dashboard_evidence(runtime),'select_command':select_command(runtime),'present_command':present_command(runtime),
@@ -100,4 +102,3 @@ def create_node_registry(runtime: Runtime):
       'save_session':save_session(runtime),
     }
     return {name: _logged_node(name, fn) for name, fn in nodes.items()}
-

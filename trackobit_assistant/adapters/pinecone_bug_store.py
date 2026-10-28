@@ -74,12 +74,15 @@ class PineconeBugStore:
         except Exception as e:
             logger.warning(f"Failed to write bugs cache: {e}")
 
-    def list_bugs(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List known bugs. If status is given (e.g. 'active'), filters by status."""
+    def list_bugs(self, status: Optional[str] = None, module: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List known bugs. Optionally filters by status and module."""
         bugs_dict = self._read_cache()
         bugs = list(bugs_dict.values())
         if status:
             bugs = [b for b in bugs if b.get("status") == status]
+        if module:
+            clean_mod = module.strip().lower()
+            bugs = [b for b in bugs if b.get("module", "general").strip().lower() in (clean_mod, "general", "any")]
         return bugs
 
     def get_bug(self, bug_id: str) -> Optional[Dict[str, Any]]:
@@ -96,9 +99,11 @@ class PineconeBugStore:
         eta: str = "",
         severity: str = "Medium",
         status: str = "active",
+        module: str = "general",
     ) -> str:
         """Add a new known bug or incident to Pinecone and local cache."""
         clean_id = str(bug_id).strip()
+        clean_mod = (module or "general").strip().lower()
         meta = {
             "bug_id": clean_id,
             "title": title.strip(),
@@ -107,6 +112,7 @@ class PineconeBugStore:
             "eta": eta.strip(),
             "severity": severity.strip(),
             "status": status.strip(),
+            "module": clean_mod,
         }
         doc = Document(
             page_content=f"{title.strip()}: {symptoms.strip()}",
@@ -119,7 +125,7 @@ class PineconeBugStore:
         cache[clean_id] = meta
         self._write_cache(cache)
 
-        logger.info(f"Added bug {clean_id} to Pinecone index {self.index_name}")
+        logger.info(f"Added bug {clean_id} (module={clean_mod}) to Pinecone index {self.index_name}")
         return clean_id
 
     def update_bug(
@@ -131,11 +137,13 @@ class PineconeBugStore:
         eta: Optional[str] = None,
         severity: Optional[str] = None,
         status: str = "active",
+        module: Optional[str] = None,
     ) -> bool:
         """Update an existing bug in Pinecone and cache."""
         clean_id = str(bug_id).strip()
         existing = self.get_bug(clean_id) or {}
 
+        clean_mod = (module if module is not None else existing.get("module", "general")) or "general"
         meta = {
             "bug_id": clean_id,
             "title": (title if title is not None else existing.get("title", "")).strip(),
@@ -144,6 +152,7 @@ class PineconeBugStore:
             "eta": (eta if eta is not None else existing.get("eta", "")).strip(),
             "severity": (severity if severity is not None else existing.get("severity", "Medium")).strip(),
             "status": status.strip(),
+            "module": str(clean_mod).strip().lower(),
         }
 
         content = f"{meta['title']}: {meta['symptoms']}".strip()
@@ -161,7 +170,7 @@ class PineconeBugStore:
         cache[clean_id] = meta
         self._write_cache(cache)
 
-        logger.info(f"Updated bug {clean_id} in Pinecone index {self.index_name}")
+        logger.info(f"Updated bug {clean_id} (module={meta['module']}) in Pinecone index {self.index_name}")
         return True
 
     def delete_bug(self, bug_id: str) -> bool:
@@ -185,6 +194,7 @@ class PineconeBugStore:
         candidate_similarity: float = 0.40,
         top_k: int = 1,
         llm: Optional[Any] = None,
+        module: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Search for an active known bug that matches the customer's complaint.
         
@@ -192,14 +202,20 @@ class PineconeBugStore:
         1. High-confidence vector similarity (score >= min_similarity) returns immediately.
         2. Moderate vector similarity (candidate_similarity <= score < min_similarity) uses an LLM
            semantic verifier to confirm whether the customer complaint matches the known bug.
+
+        If `module` is specified (e.g. 'reports'), filters out bugs registered under other modules.
         """
         if not user_complaint or not user_complaint.strip():
             return None
 
+        clean_target_module = (module or "").strip().lower()
+
         try:
+            # Retrieve enough candidates to find module-specific matches
+            fetch_k = max(top_k * 3, 5)
             results = self.vector_store.similarity_search_with_score(
                 query=user_complaint,
-                k=top_k,
+                k=fetch_k,
                 filter={"status": "active"},
             )
         except Exception as e:
@@ -209,7 +225,23 @@ class PineconeBugStore:
         if not results:
             return None
 
-        matched_doc, score = results[0]
+        # Filter by module if specified
+        filtered_results = []
+        for matched_doc, score in results:
+            meta = matched_doc.metadata or {}
+            doc_module = str(meta.get("module") or "general").strip().lower()
+            if clean_target_module and doc_module not in ("general", "any", "", clean_target_module):
+                logger.info(
+                    f"[PINECONE_BUG_STORE] Skipping candidate bug '{meta.get('bug_id')}' "
+                    f"due to module mismatch: target='{clean_target_module}', bug='{doc_module}'"
+                )
+                continue
+            filtered_results.append((matched_doc, score))
+
+        if not filtered_results:
+            return None
+
+        matched_doc, score = filtered_results[0]
         meta = matched_doc.metadata or {}
         bug_data = {
             "bug_id": meta.get("bug_id", matched_doc.id if hasattr(matched_doc, "id") else ""),
@@ -219,6 +251,7 @@ class PineconeBugStore:
             "eta": meta.get("eta", ""),
             "severity": meta.get("severity", "Medium"),
             "status": meta.get("status", "active"),
+            "module": meta.get("module", "general"),
             "similarity_score": round(float(score), 4),
         }
 
@@ -231,7 +264,7 @@ class PineconeBugStore:
             try:
                 from langchain_core.messages import SystemMessage
                 prompt = (
-                    f"Known Bug / Incident: {bug_data['title']} (symptoms/details: {bug_data['symptoms']})\n"
+                    f"Known Bug / Incident: {bug_data['title']} (Module: {bug_data['module']}, symptoms/details: {bug_data['symptoms']})\n"
                     f"Customer Complaint: {user_complaint}\n\n"
                     "Does this customer complaint describe, relate to, or result from this known bug? "
                     "Reply strictly starting with YES or NO, followed by a one-sentence reason."

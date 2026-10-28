@@ -16,7 +16,7 @@ def make_node(runtime):
         if bug_store is not None:
             query = f"{user_msg} {symptoms_text}".strip()
             try:
-                matched_bug = bug_store.search_active_bug(query, llm=runtime.llm)
+                matched_bug = bug_store.search_active_bug(query, llm=runtime.llm, module=state.get('selected_module'))
             except Exception as e:
                 logger.warning(f"[CREATE_BUG_TICKET] Pinecone search error: {e}")
                 matched_bug = None

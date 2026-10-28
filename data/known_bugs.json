@@ -6,6 +6,7 @@
     "workaround": "use trackobit mobile app for now",
     "eta": "2 weeks from now",
     "severity": "Medium",
-    "status": "active"
+    "status": "active",
+    "module": "reports"
   }
 }

@@ -18,3 +18,4 @@ class Runtime:
     prompts: PromptRepository | None = None
     messages: MessageRenderer | None = None
     bug_store: Any = None
+    module_taxonomy: Any = None

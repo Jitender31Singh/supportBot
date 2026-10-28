@@ -54,7 +54,7 @@ def make_node(runtime):
         bug_store = getattr(runtime, 'bug_store', None)
         if bug_store is not None and not vehicle:
             try:
-                matched_bug = bug_store.search_active_bug(text, llm=runtime.llm)
+                matched_bug = bug_store.search_active_bug(text, llm=runtime.llm, module=state.get('selected_module'))
             except Exception as e:
                 logger.warning(f"[SYMPTOM_ANALYZER] Bug search failed: {e}")
                 matched_bug = None

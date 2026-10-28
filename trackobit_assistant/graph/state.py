@@ -77,3 +77,6 @@ class AssistantState(TypedDict, total=False):
     since_status: str | None
     stale_diagnostics: dict[str, Any] | None
     config_step: str | None
+    selected_module: str | None
+    candidate_modules: list[str]
+    pending_module_query: str | None

@@ -173,3 +173,19 @@ class WorkflowFrame(BaseModel):
     outcome: str | None = None
     summary: str | None = None
     completed_at: datetime | None = None
+
+
+class ModuleClassification(BaseModel):
+    detected_module: str | None = Field(
+        default=None,
+        description="The specific TrackoBit module identified, or None if ambiguous/general."
+    )
+    is_ambiguous: bool = Field(
+        default=False,
+        description="True if the issue involves a shared concept (like distance, speed, buffering) that applies to multiple modules."
+    )
+    candidate_modules: list[str] = Field(
+        default_factory=list,
+        description="List of candidate module IDs when is_ambiguous is True (e.g. ['reports', 'live_tracking'])."
+    )
+    reasoning: str = ""

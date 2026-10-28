@@ -18,6 +18,7 @@ from trackobit_assistant.adapters.ticket_client import HttpTicketClient, Logging
 from trackobit_assistant.adapters.command_registry import YamlCommandRegistry
 from trackobit_assistant.adapters.knowledge_base import FileKnowledgeBase
 from trackobit_assistant.adapters.pinecone_bug_store import PineconeBugStore
+from trackobit_assistant.services.module_taxonomy import ModuleTaxonomyService
 from trackobit_assistant.graph.runtime import Runtime
 from trackobit_assistant.graph.builder import build_graph
 from trackobit_assistant.llm.factory import create_chat_model
@@ -80,8 +81,9 @@ if settings.pinecone_api_key:
     except Exception as exc:
         logger.warning(f"Could not initialize PineconeBugStore: {exc}")
 
+module_taxonomy = ModuleTaxonomyService(Path('config/application_modules.yaml'))
 runtime=Runtime(settings=settings,session_store=store,vehicle_client=vehicle_client,ticket_client=ticket_client,
-                command_registry=command_registry,knowledge_base=knowledge_base,llm=llm,vision_llm=vision_llm,prompts=prompt_repo,messages=message_renderer,bug_store=bug_store)
+                command_registry=command_registry,knowledge_base=knowledge_base,llm=llm,vision_llm=vision_llm,prompts=prompt_repo,messages=message_renderer,bug_store=bug_store,module_taxonomy=module_taxonomy)
 graph=build_graph(runtime)
 
 app=FastAPI(title=settings.app_name,version='0.1.0',description='Session-based TrackoBit support assistant API')
@@ -340,18 +342,25 @@ class BugItem(BaseModel):
     eta: str = ""
     severity: str = "Medium"
     status: str = "active"
+    module: str = "general"
 
 
 class BugSearchRequest(BaseModel):
     query: str
+    module: str | None = None
     min_similarity: float = 0.75
 
 
+@app.get('/modules')
+def get_modules():
+    return {'modules': module_taxonomy.get_modules()}
+
+
 @app.get('/bugs')
-def get_bugs(status: str | None = None):
+def get_bugs(status: str | None = None, module: str | None = None):
     if not bug_store:
         return {'bugs': []}
-    return {'bugs': bug_store.list_bugs(status=status)}
+    return {'bugs': bug_store.list_bugs(status=status, module=module)}
 
 
 @app.post('/bugs')
@@ -367,6 +376,7 @@ def add_or_update_bug(payload: BugItem):
             eta=payload.eta,
             severity=payload.severity,
             status=payload.status,
+            module=payload.module,
         )
         return {'status': 'success', 'bug_id': bug_id, 'message': f"Bug {bug_id} saved to Pinecone."}
     except Exception as exc:
@@ -390,6 +400,6 @@ def delete_bug(bug_id: str):
 def search_bug(payload: BugSearchRequest):
     if not bug_store:
         raise HTTPException(status_code=503, detail="PineconeBugStore is not configured or available.")
-    match = bug_store.search_active_bug(payload.query, min_similarity=payload.min_similarity, llm=llm)
+    match = bug_store.search_active_bug(payload.query, min_similarity=payload.min_similarity, llm=llm, module=payload.module)
     return {'match': match}
 
