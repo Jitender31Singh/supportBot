@@ -1,27 +1,27 @@
 import logging
 import re
 from langchain_core.messages import SystemMessage
+from trackobit_assistant.services.vehicle_normaliser import extract_vehicle_no, VEHICLE_NO_SEARCH_PATTERN
 from trackobit_assistant.schemas.models import SymptomsResult
-from trackobit_assistant.services.vehicle_normaliser import extract_vehicle_no
 
 logger = logging.getLogger('trackobit_assistant.nodes.symptom_analyzer')
 
 def make_node(runtime):
     def node(state):
         session_id = state.get('session_id', '-')
-        text = state.get('last_user_message', '')
+        text = state.get('last_user_message') or ''
         result = None
         if runtime.llm is not None:
             try:
-                prompt = (runtime.prompts.render('symptom_analyzer', user_message=text, vehicle_no=state.get('vehicle_no')) if runtime.prompts else f'Extract symptoms and a vehicle registration number from: {text}')
+                prompt = (runtime.prompts.render('symptom_analyzer', user_message=text) if runtime.prompts else f'Extract symptoms from: {text}')
                 result = runtime.llm.with_structured_output(SymptomsResult).invoke([SystemMessage(content=prompt)])
                 logger.info(f"[SYMPTOM_ANALYZER] LLM extracted symptoms: summary='{result.summary}', vehicle='{result.vehicle_no}', urgency='{result.urgency}'", extra={'session_id': session_id})
             except Exception as exc:
-                logger.warning(f"[SYMPTOM_ANALYZER] LLM symptom extraction failed ({type(exc).__name__}: {exc})", extra={'session_id': session_id})
+                logger.warning(f"[SYMPTOM_ANALYZER] LLM extraction failed ({type(exc).__name__}: {exc}); fallback to regex", extra={'session_id': session_id})
                 result = None
 
         candidate = extract_vehicle_no(text)
-        other_vehicle = any(w in text.casefold() for w in ('another vehicle', 'different vehicle', 'second vehicle', 'another vehicle number', 'other vehicle', 'new vehicle', 'switch vehicle'))
+        other_vehicle = bool(re.search(r'\b(another|different|second|new)\s+vehicle\b', text, re.IGNORECASE))
         if candidate:
             vehicle = candidate
         elif other_vehicle:
@@ -29,12 +29,7 @@ def make_node(runtime):
         elif result and result.vehicle_no:
             vehicle = extract_vehicle_no(result.vehicle_no) or result.vehicle_no
         else:
-            prev_veh = (
-                state.get('workflow_stack')[-1].get('context', {}).get('vehicle_no')
-                if state.get('workflow_stack')
-                else None
-            )
-            vehicle = state.get('vehicle_no') or prev_veh
+            vehicle = state.get('vehicle_no')
 
         old = state.get('symptoms') or {}
         device_match = re.search(r'(?i)\b(concox\s*v?\d*|teltonika|queclink|meitrack)\b', text)
@@ -50,9 +45,9 @@ def make_node(runtime):
         if result and result.user_observation: symptoms['user_observation'] = result.user_observation
         logger.info(f"[SYMPTOM_ANALYZER] Output: vehicle_no='{vehicle}', device_type='{mention}', urgency='{symptoms.get('urgency')}', summary='{summary[:60]}'", extra={'session_id': session_id})
 
-        # Check for known bugs early if bug_store is configured and user did not specify a vehicle
+        # Check for known bugs early if bug_store is configured
         bug_store = getattr(runtime, 'bug_store', None)
-        if bug_store is not None and not vehicle:
+        if bug_store is not None:
             try:
                 matched_bug = bug_store.search_active_bug(text, llm=runtime.llm, module=state.get('selected_module'))
             except Exception as e:
@@ -73,7 +68,7 @@ def make_node(runtime):
                 )
                 return {
                     'symptoms': symptoms,
-                    'vehicle_no': None,
+                    'vehicle_no': vehicle,
                     'known_bug': matched_bug,
                     'response': resp,
                     'awaiting': 'none',

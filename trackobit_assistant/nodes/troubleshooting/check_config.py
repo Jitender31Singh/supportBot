@@ -36,7 +36,11 @@ NEGATIVE_PATTERN = re.compile(
 def _is_negative(text: str) -> bool:
     if not text:
         return False
-    return bool(NEGATIVE_PATTERN.search(str(text).strip()))
+    clean = str(text).strip().casefold()
+    # Guard against customer symptom phrasing that uses "wrong" or "incorrect" to describe telemetry or reports
+    if re.search(r"\b(wrong|incorrect)\s+(distance|report|speed|location|reading|address|data|mileage|km|odometer|time|alert|route|playback)\b", clean):
+        return False
+    return bool(NEGATIVE_PATTERN.search(clean))
 
 def _is_affirmative(text: str) -> bool:
     if not text:
@@ -73,6 +77,34 @@ def make_node(runtime: Any):
         )
 
         updates: dict[str, Any] = {"current_step": "check_config"}
+
+        # Check if user message matches an active known bug early
+        bug_store = getattr(runtime, "bug_store", None)
+        if bug_store is not None and user_message:
+            try:
+                matched_bug = bug_store.search_active_bug(user_message, llm=runtime.llm, module=state.get("selected_module"))
+                if matched_bug:
+                    title = matched_bug.get("title")
+                    bug_id = matched_bug.get("bug_id")
+                    workaround = matched_bug.get("workaround") or "Our engineering team is actively resolving this."
+                    eta = matched_bug.get("eta") or "in progress"
+                    resp = (
+                        f"⚠️ We have identified this as an active known issue: **{title}** (Reference: `{bug_id}`).\n\n"
+                        f"• **Status**: Active (Fix ETA: {eta})\n"
+                        f"• **Workaround**: {workaround}\n\n"
+                        "Our engineering team is already working on resolving this issue."
+                    )
+                    return {
+                        **updates,
+                        "response": resp,
+                        "awaiting": "none",
+                        "resolved": True,
+                        "fault_category": "known_software_outage",
+                        "known_bug": matched_bug,
+                        "current_step": "complete_frame",
+                    }
+            except Exception as e:
+                logger.warning(f"[CHECK_CONFIG] Known bug search error: {e}")
 
         # -----------------------------------------------------------------
         # Multi-turn reply handling based on awaiting state

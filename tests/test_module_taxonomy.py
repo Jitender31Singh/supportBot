@@ -158,3 +158,64 @@ def test_pinecone_bug_store_module_filtering():
     # When querying for maintenance module, neither matches -> returns None
     res_maint = store.search_active_bug("distance issue", min_similarity=0.65, module="maintenance")
     assert res_maint is None
+
+
+def test_symptom_analyzer_deflects_bug_even_when_session_had_vehicle():
+    from trackobit_assistant.nodes.intake.symptom_analyzer import make_node as make_symptom_node
+
+    mock_bug_store = MagicMock()
+    mock_bug_store.search_active_bug.return_value = {
+        "bug_id": "Bug-01",
+        "title": "in distance report distance is shown in miles",
+        "workaround": "use trackobit mobile app for now",
+        "eta": "2 weeks from now",
+        "module": "reports",
+    }
+
+    mock_runtime = MagicMock()
+    mock_runtime.bug_store = mock_bug_store
+    mock_runtime.llm = None
+    mock_runtime.prompts = None
+
+    node = make_symptom_node(mock_runtime)
+
+    # State where vehicle was present from previous turn in the session
+    state = {
+        "session_id": "test-sess",
+        "last_user_message": "i am getting issue with distance on my application",
+        "selected_module": "reports",
+        "vehicle_no": "HR85G2799",
+        "workflow_stack": [],
+    }
+
+    result = node(state)
+    assert result.get("resolved") is True
+    assert result.get("fault_category") == "known_software_outage"
+    assert "Bug-01" in result.get("response", "")
+    assert "use trackobit mobile app for now" in result.get("response", "")
+
+
+def test_check_config_does_not_treat_wrong_distance_as_port_rejection():
+    from trackobit_assistant.nodes.troubleshooting.check_config import make_node as make_check_config_node
+
+    mock_runtime = MagicMock()
+    mock_runtime.bug_store = None
+    mock_runtime.llm = None
+
+    node = make_check_config_node(mock_runtime)
+
+    # User says "i have wrong distance in distance report" while awaiting port confirmation
+    state = {
+        "session_id": "test-sess",
+        "last_user_message": "i have wrong distance in distance report",
+        "awaiting": "config_port_confirm",
+        "vehicle_no": "HR85G2799",
+        "vehicle_snapshot": {"port": 8503},
+    }
+
+    result = node(state)
+    # Must NOT reject the port or escalate to human handoff!
+    assert result.get("current_step") != "human_handoff"
+    assert result.get("handoff_reason") is None
+    # Instead, re-prompts for confirmation
+    assert "Please confirm with 'yes' or 'no'" in result.get("response", "")

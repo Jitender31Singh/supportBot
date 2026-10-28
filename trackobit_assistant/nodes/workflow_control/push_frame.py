@@ -8,13 +8,13 @@ def make_node(runtime):
             state.get('active_frame_id'),
             'diagnosis',
             {
-                'symptoms': state.get('symptoms') or {},
-                'command_history': state.get('command_history') or [],
-                'retry_counters': state.get('retry_counters') or {},
-                'vehicle_no': state.get('vehicle_no'),
-                'vehicle_snapshot': state.get('vehicle_snapshot'),
-                'config_port_status': state.get('config_port_status'),
-                'config_device_type_status': state.get('config_device_type_status'),
+                'symptoms': {},
+                'command_history': [],
+                'retry_counters': {},
+                'vehicle_no': None,
+                'vehicle_snapshot': None,
+                'config_port_status': None,
+                'config_device_type_status': None,
             },
             state.get('paused_at_step')
         )
