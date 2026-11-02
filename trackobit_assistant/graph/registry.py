@@ -24,6 +24,7 @@ from trackobit_assistant.nodes.diagnosis.present_command import make_node as pre
 from trackobit_assistant.nodes.diagnosis.process_screenshot import make_node as process_screenshot
 from trackobit_assistant.nodes.diagnosis.analyze_output import make_node as analyze_output
 from trackobit_assistant.nodes.diagnosis.diagnosis_result import make_node as diagnosis_result
+from trackobit_assistant.nodes.diagnosis.fault_diagnosis import make_node as fault_diagnosis
 from trackobit_assistant.nodes.resolution.resolution_check import make_node as resolution_check
 from trackobit_assistant.nodes.resolution.resolution_handler import make_node as resolution_handler
 from trackobit_assistant.nodes.resolution.close_session import make_node as close_session
@@ -90,6 +91,7 @@ def create_node_registry(runtime: Runtime):
       'basic_troubleshooting':basic_troubleshooting(runtime),'recheck_vehicle_info':recheck_vehicle_info(runtime),
       'ask_dashboard_evidence':ask_dashboard_evidence(runtime),'select_command':select_command(runtime),'present_command':present_command(runtime),
       'process_screenshot':process_screenshot(runtime),'analyze_output':analyze_output(runtime),'diagnosis_result':diagnosis_result(runtime),
+      'fault_diagnosis':fault_diagnosis(runtime),
       'resolution_check':resolution_check(runtime),'resolution_handler':resolution_handler(runtime),'close_session':close_session(runtime),
       'human_handoff':human_handoff(runtime),'push_frame':push_frame(runtime),'pause_workflow':pause_workflow(runtime),
       'resume_workflow':resume_workflow(runtime),'stale_resume_handler':stale_resume_handler(runtime),'choose_workflow':choose_workflow(runtime),

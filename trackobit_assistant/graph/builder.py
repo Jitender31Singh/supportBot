@@ -1,4 +1,4 @@
-from langgraph.graph import StateGraph, START, END
+﻿from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from trackobit_assistant.graph.state import AssistantState
 from trackobit_assistant.graph.runtime import Runtime
@@ -46,7 +46,13 @@ def build_graph(runtime: Runtime):
       'save_session':'save_session','fault_classifier':'fault_classifier','human_handoff':'human_handoff'})
     graph.add_conditional_edges('fault_classifier',routes.route_after_fault,{
       'account_advice':'account_advice','create_bug_ticket':'create_bug_ticket','basic_troubleshooting':'basic_troubleshooting',
-      'select_command':'select_command','ask_dashboard_evidence':'ask_dashboard_evidence','resolution_check':'resolution_check'})
+      'select_command':'select_command','ask_dashboard_evidence':'ask_dashboard_evidence','resolution_check':'resolution_check',
+      'fault_diagnosis':'fault_diagnosis'})
+    graph.add_conditional_edges('fault_diagnosis',routes.route_after_fault_diagnosis,{
+      'select_command':'select_command','basic_troubleshooting':'basic_troubleshooting',
+      'recheck_vehicle_info':'recheck_vehicle_info','update_dashboard_evidence':'update_dashboard_evidence',
+      'human_handoff':'human_handoff','save_session':'save_session',
+      'process_screenshot':'process_screenshot','resolution_check':'resolution_check'})
     graph.add_edge('account_advice','resolution_check')
     graph.add_conditional_edges('create_bug_ticket',routes.route_after_software_ticket,{'human_handoff':'human_handoff','notify_user':'notify_user'})
     graph.add_edge('notify_user','complete_frame')

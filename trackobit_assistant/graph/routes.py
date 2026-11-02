@@ -132,13 +132,22 @@ def route_after_fault(state):
     category = state.get('fault_category')
     rounds = int(state.get('troubleshoot_rounds') or 0)
     max_rounds = int(state.get('max_troubleshoot_rounds') or 2)
-    if category == 'account_issue': target = 'account_advice'
-    elif category == 'software_issue': target = 'create_bug_ticket'
+    if category == 'account_issue':
+        target = 'account_advice'
+    elif category == 'software_issue':
+        target = 'create_bug_ticket'
+    elif category == 'state_discrepancy':
+        target = 'fault_diagnosis'
     elif category in {'hardware_issue', 'parked_ignition_off'}:
         target = 'select_command' if rounds >= max_rounds else 'basic_troubleshooting'
-    elif category in {'need_more_info', 'unknown'}: target = 'ask_dashboard_evidence'
-    else: target = 'resolution_check'
-    logger.info(f"[ROUTER: route_after_fault] category='{category}', troubleshoot_rounds={rounds}/{max_rounds} -> routing to '{target}'", extra={'session_id': session_id})
+    elif category in {'need_more_info', 'unknown'}:
+        target = 'ask_dashboard_evidence'
+    else:
+        target = 'resolution_check'
+    logger.info(
+        f"[ROUTER: route_after_fault] category='{category}', troubleshoot_rounds={rounds}/{max_rounds} -> routing to '{target}'",
+        extra={'session_id': session_id}
+    )
     return target
 
 def route_after_select_command(state):
@@ -223,4 +232,23 @@ def route_after_software_ticket(state):
     session_id = state.get('session_id', '-')
     target = 'human_handoff' if state.get('handoff_reason') == 'software_ticket_create_failed' else 'notify_user'
     logger.info(f"[ROUTER: route_after_software_ticket] handoff_reason='{state.get('handoff_reason')}' -> routing to '{target}'", extra={'session_id': session_id})
+    return target
+
+def route_after_fault_diagnosis(state):
+    session_id = state.get('session_id', '-')
+    next_step = state.get('next_diagnosis_step', 'basic_troubleshooting')
+    awaiting = state.get('awaiting', 'none')
+    if awaiting != 'none':
+        # Node asked user a question — save and wait
+        target = 'save_session'
+    else:
+        target = next_step if next_step in {
+            'select_command', 'basic_troubleshooting', 'recheck_vehicle_info',
+            'update_dashboard_evidence', 'human_handoff', 'process_screenshot',
+            'resolution_check',
+        } else 'basic_troubleshooting'
+    logger.info(
+        f"[ROUTER: route_after_fault_diagnosis] next_step='{next_step}', awaiting='{awaiting}' -> routing to '{target}'",
+        extra={'session_id': session_id}
+    )
     return target

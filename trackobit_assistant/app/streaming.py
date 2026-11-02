@@ -20,6 +20,7 @@ _PROGRESS_LABELS = {
     "validate_vehicle_no": "Validating the vehicle number…",
     "fetch_vehicle_info": "Checking vehicle and device status…",
     "fault_classifier": "Evaluating the available device evidence…",
+    "fault_diagnosis": "Diagnosing the state discrepancy for this vehicle…",
     "account_advice": "Checking account and activation status…",
     "create_bug_ticket": "Preparing a software-issue report…",
     "notify_user": "Preparing the support update…",

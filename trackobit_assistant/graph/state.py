@@ -83,3 +83,5 @@ class AssistantState(TypedDict, total=False):
     speed: float | int | None
     candidate_modules: list[str]
     pending_module_query: str | None
+    state_expectation_bucket: str | None
+    actual_vehicle_state: str | None
