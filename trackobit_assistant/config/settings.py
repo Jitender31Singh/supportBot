@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     ticket_api_url: str | None = None
     ticket_api_key: str | None = None
     ticket_api_timeout_seconds: float = 10.0
-    vehicle_no_regex: str = r'^(?:[A-Z]{2}\d{1,2}[A-Z]{0,4}\d{4}|\d{2}BH\d{4}[A-Z]{1,2})$'
+    vehicle_no_regex: str = r'^(?:[A-Z]{2}\d{1,2}[A-Z]{0,4}\d{4}|\d{2}BH\d{4}[A-Z]{1,2}|(?=.*[A-Z])(?=.*\d)[A-Z0-9-]{3,15})$'
     intent_confidence_threshold: float = 0.65
     query_confidence_threshold: float = 0.60
     rag_confidence_threshold: float = 0.60

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 try:
     from enum import StrEnum
 except ImportError:
@@ -39,12 +39,28 @@ class IntentResult(BaseModel):
     target_frame_id: str | None = None
     intents: list[IntentItem] = Field(default_factory=list)
 
+class VehicleStateExpectationBucket(StrEnum):
+    """
+    Describes the vehicle state the user EXPECTS to see on the dashboard,
+    inferred from their complaint. Named with _state suffix to avoid
+    confusion with actual telemetry state values.
+    """
+    STOPPED_STATE = 'stopped_state'          # User says vehicle is parked / engine off / not moving
+    RUNNING_STATE = 'running_state'          # User says vehicle is driving / moving on road
+    IDLE_STATE = 'idle_state'                # User says vehicle engine is ON but stationary (AC running, waiting at site)
+    OVERSPEED_STATE = 'overspeed_state'      # User's complaint is about speeding alert or overspeed flag behaviour
+    UNREACHABLE_STATE = 'unreachable_state'  # User says device is offline / no signal / out of network
+    INACTIVE_STATE = 'inactive_state'        # User says vehicle is long-term dormant / decommissioned / not in use
+    NEW_DEVICE_STATE = 'new_device_state'    # User says this is a newly installed device not yet showing on map
+    GENERAL_ISSUE_STATE = 'general_issue_state'  # Non-state complaint: reports, fuel, alerts, speed data, route etc.
 class SymptomsResult(BaseModel):
     summary: str = ''
     vehicle_no: str | None = None
     device_type_mention: str | None = None
     urgency: str = 'normal'
     user_observation: str | None = None
+    state_expectation_bucket: VehicleStateExpectationBucket = VehicleStateExpectationBucket.GENERAL_ISSUE_STATE
+    reported_dashboard_state: str | None = None  # e.g. "running" when user says "shown as running but vehicle is stopped"
 
 class QueryKind(StrEnum):
     STATIC_INFO = 'static_info'
@@ -83,12 +99,14 @@ class DiagnosticCheckResult(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
     recommended_action: str | None = None
 
+
 class FaultCategory(StrEnum):
     ACCOUNT_ISSUE = 'account_issue'
     SOFTWARE_ISSUE = 'software_issue'
     HARDWARE_ISSUE = 'hardware_issue'
     PARKED_IGNITION_OFF = 'parked_ignition_off'
     NO_ISSUE = 'no_issue'
+    STATE_DISCREPANCY = 'state_discrepancy'
     NEED_MORE_INFO = 'need_more_info'
     UNKNOWN = 'unknown'
 

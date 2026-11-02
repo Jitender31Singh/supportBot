@@ -4,33 +4,80 @@ from typing import Any
 from zoneinfo import ZoneInfo
 from trackobit_assistant.schemas.models import VehicleSnapshot
 
-# Comprehensive Indian vehicle registration number search pattern
+# Comprehensive Indian vehicle registration number & fleet asset search pattern
 # Standard: State (2 letters) + District (1-2 digits) + optional series/category (0-4 letters) + Number (4 digits)
 # BH series: Year (2 digits) + BH + Number (4 digits) + series (1-2 letters)
+# Heavy machinery & fleet equipment prefixes (JCB, CAT, TRUCK, etc.) followed by alphanumeric digits
 VEHICLE_NO_SEARCH_PATTERN = re.compile(
     r'(?i)\b(?:'
     r'[A-Z]{2}\s*[- ]?\d{1,2}(?:\s*[- ]?[A-Z]+)*\s*[- ]?\d{4}'
     r'|'
     r'\d{2}\s*[- ]?BH\s*[- ]?\d{4}\s*[- ]?[A-Z]{1,2}'
+    r'|'
+    r'(?:JCB|CAT|TRUCK|TRACTOR|CRANE|TANKER|BUS|VAN|HYDRA|LOADER|DG|GENSET|TRAILER|TIPPER|DUMPER)\s*[- ]?[A-Z0-9]*\d+[A-Z0-9]*'
     r')\b'
 )
 
-VEHICLE_NO_NORMALIZED_PATTERN = re.compile(
-    r'^(?:[A-Z]{2}\d{1,2}[A-Z]{0,4}\d{4}|\d{2}BH\d{4}[A-Z]{1,2})$'
+VEHICLE_PREFIX_SEARCH_PATTERN = re.compile(
+    r'(?i)\b(?:vehicle|gaadi|asset|plate)\s*(?:no|num|number)?\s*[:#-]?\s*([A-Za-z0-9-]{3,15})\b'
 )
 
+VEHICLE_NO_NORMALIZED_PATTERN = re.compile(
+    r'^(?:'
+    r'[A-Z]{2}\d{1,2}[A-Z]{0,4}\d{4}'
+    r'|'
+    r'\d{2}BH\d{4}[A-Z]{1,2}'
+    r'|'
+    r'(?=.*[A-Z])(?=.*\d)[A-Z0-9-]{3,15}'
+    r')$'
+)
+
+EXCLUDED_VEHICLE_TERMS = {
+    # Device hardware models & series
+    'GT06', 'GT06F', 'ET300', 'EV02', 'GS03', 'JV200', 'LT05', 'LT05P',
+    'PT06', 'RP01', 'RP01N', 'RP05', 'RP05E', 'S106', 'TK06A', 'TR08A',
+    'W15', 'BW09', 'AT06', 'R11', 'R12', 'V5',
+    # Telematics protocols & networks
+    '2G', '3G', '4G', '5G', 'GPRS', 'GPS', 'GSM',
+    # Common conversational / command terms
+    'STATUS', 'PARAM', 'RESET', 'SERVER', 'PORT', 'CHECK', 'UPDATE',
+    'DEVICE', 'CONFIG', 'COMMAND', 'REPORT', 'REPORTS', 'TEST'
+}
+
+def is_valid_vehicle_no(cand: str | None) -> bool:
+    """Validate whether a candidate string is a plausible vehicle plate or fleet asset ID."""
+    if not cand:
+        return False
+    norm = re.sub(r'[\s-]', '', str(cand)).upper()
+    if norm in EXCLUDED_VEHICLE_TERMS:
+        return False
+    return bool(VEHICLE_NO_NORMALIZED_PATTERN.fullmatch(norm))
+
 def extract_vehicle_no(text: str | None) -> str | None:
-    """Extract and normalize a vehicle registration number from free text."""
+    """Extract and normalize a vehicle registration number or fleet asset ID from free text."""
     if not text:
         return None
-    match = VEHICLE_NO_SEARCH_PATTERN.search(str(text))
+    raw_str = str(text).strip()
+
+    # 1. Primary search pattern (Standard Indian RTO, BH series, equipment prefixes)
+    match = VEHICLE_NO_SEARCH_PATTERN.search(raw_str)
     if match:
-        normalized = re.sub(r'[\s-]', '', match.group(0)).upper()
-        if VEHICLE_NO_NORMALIZED_PATTERN.fullmatch(normalized):
-            return normalized
-    cleaned = re.sub(r'[\s-]', '', str(text)).upper()
-    if VEHICLE_NO_NORMALIZED_PATTERN.fullmatch(cleaned):
+        cand = re.sub(r'[\s-]', '', match.group(0)).upper()
+        if is_valid_vehicle_no(cand):
+            return cand
+
+    # 2. Contextual prefix search (e.g. "vehicle: ASSET101", "gaadi no HR85G2799")
+    prefix_match = VEHICLE_PREFIX_SEARCH_PATTERN.search(raw_str)
+    if prefix_match:
+        cand = re.sub(r'[\s-]', '', prefix_match.group(1)).upper()
+        if is_valid_vehicle_no(cand):
+            return cand
+
+    # 3. Direct clean check (single identifier string)
+    cleaned = re.sub(r'[\s-]', '', raw_str).upper()
+    if is_valid_vehicle_no(cleaned):
         return cleaned
+
     return None
 
 def _parse_date(value: Any, timezone_name: str, fmt: str = '%d/%m/%Y %H:%M:%S') -> datetime | None:

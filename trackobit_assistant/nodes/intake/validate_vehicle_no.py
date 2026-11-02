@@ -1,6 +1,6 @@
 import logging
 import re
-from trackobit_assistant.services.vehicle_normaliser import extract_vehicle_no
+from trackobit_assistant.services.vehicle_normaliser import extract_vehicle_no, is_valid_vehicle_no
 
 logger = logging.getLogger('trackobit_assistant.nodes.validate_vehicle_no')
 
@@ -46,7 +46,7 @@ def make_node(runtime):
         extracted = extract_vehicle_no(raw_str)
         if not extracted:
             normalized = re.sub(r'[\s-]', '', raw_str.upper())
-            if re.fullmatch(runtime.settings.vehicle_no_regex, normalized):
+            if re.fullmatch(runtime.settings.vehicle_no_regex, normalized) and is_valid_vehicle_no(normalized):
                 extracted = normalized
 
         if not extracted or not re.fullmatch(runtime.settings.vehicle_no_regex, extracted):
@@ -56,9 +56,9 @@ def make_node(runtime):
             )
             # If the user typed a descriptive sentence rather than a registration plate attempt
             if len(raw_str.split()) > 2 and not re.search(r'\d', raw_str):
-                msg = 'I could not find a vehicle registration number in your message. To check tracking status, please provide the vehicle number (e.g. `HR85G2799`).'
+                msg = 'I could not find a vehicle registration number in your message. To check tracking status, please provide the vehicle number (e.g. `HR85G2799` or `JCB01010`).'
             else:
-                msg = f'That vehicle number does not match the expected format. I received `{raw_str}`; try a value like `HR85G2799`. Please check the letters and digits.'
+                msg = f'That vehicle number does not match the expected format. I received `{raw_str}`; try a value like `HR85G2799` or asset ID like `JCB01010`. Please check the letters and digits.'
 
             return {
                 'vehicle_no': None,
