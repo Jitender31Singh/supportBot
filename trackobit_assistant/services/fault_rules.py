@@ -45,6 +45,7 @@ def classify_fault(
     state_expectation_bucket: str | None = None,
 ) -> FaultResult:
     if not snapshot:
+        print("no snapshot data")
         return FaultResult(
             category=FaultCategory.NEED_MORE_INFO,
             confidence=0.3,
@@ -66,15 +67,16 @@ def classify_fault(
         evidence.append('Subscription due date has passed')
         return FaultResult(category=FaultCategory.ACCOUNT_ISSUE, confidence=0.98, evidence=evidence)
 
-    for field in ('vehicle_status', 'device_status'):
+    for field in 'device_status':
         value = snapshot.get(field)
-        if value and str(value).casefold() not in {'active', 'true', '1'}:
+        if value and str(value).casefold() not in {'active'}:
             evidence.append(f'{field} is {value}')
             return FaultResult(category=FaultCategory.ACCOUNT_ISSUE, confidence=0.95, evidence=evidence)
 
     # ── 2. State-expectation bucketing (compare user's expected vs actual) ───
     bucket_key = state_expectation_bucket or VehicleStateExpectationBucket.GENERAL_ISSUE_STATE
     matching_states = _BUCKET_TO_MATCHING_STATES.get(bucket_key, set())
+    print(f'User expects: {bucket_key} | API actual state: "{snapshot.get("state", "")}"')
 
     if matching_states:
         actual_state = _normalize_actual_state(snapshot)
@@ -84,6 +86,7 @@ def classify_fault(
             for ms in matching_states
         )
         evidence.append(f'User expects: {bucket_key} | API actual state: "{snapshot.get("state", "")}" (normalized: "{actual_state}")')
+
 
         if state_matches:
             # Backend already reflects the expected state — tell user to refresh
