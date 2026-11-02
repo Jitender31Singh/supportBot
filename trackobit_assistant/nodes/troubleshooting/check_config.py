@@ -1,13 +1,17 @@
 """Check configuration node for vehicle and device validation before fault classification.
 
 Follows support procedures:
-1. Validates configured port and device type, confirming each with the client.
-2. Checks vehicle status and subscription expiry (vehicle takes precedence).
+1. Pre-flight checks (from API): lu, subscriptionDue, subscriptionStart must not be empty;
+   deviceType, imei, port must be configured (ask user to fix and re-check if missing);
+   vehicleStatus must be Active (check subscription expiry if not).
+2. Validates configured port and device type, confirming each with the client.
 3. Checks device status and guides device activation via RAG if inactive.
 4. Validates lu (last update) and since timestamps.
 5. If lu <= 5 min (fresh), bypasses stale diagnostics and proceeds directly to fault classification.
-6. If lu > 5 min (stale), invokes modular diagnostic stubs (check_ip, check_port, check_imei).
-   If diagnostics are unavailable, safely escalates with diagnostic context.
+6. If lu > 5 min (stale), runs command-based diagnosis:
+   a. Asks user to run STATUS command and share screenshot -> analyze.
+   b. If STATUS is clean, asks user to run PARAM command and share screenshot -> analyze.
+   c. If PARAM is clean, proceeds to fault_classifier.
 7. Only asks client to move vehicle when all configuration and diagnostic prerequisites are satisfied.
 """
 from __future__ import annotations
@@ -19,10 +23,13 @@ from typing import Any
 
 from trackobit_assistant.graph.state import AssistantState
 from trackobit_assistant.schemas.models import ValidationStatus, VehicleSnapshot
-from trackobit_assistant.services.device_diagnostics import check_imei, check_ip, check_port
+from trackobit_assistant.services.device_command_map import (
+    describe_status_command,
+    get_param_command,
+    get_status_command,
+)
 from trackobit_assistant.services.device_port_registry import (
     format_port_mismatch_message,
-    get_device_port_info,
     get_expected_port,
     is_port_configured,
     is_port_matching,
@@ -44,14 +51,15 @@ FIX_CONFIRM_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+
 def _is_negative(text: str) -> bool:
     if not text:
         return False
     clean = str(text).strip().casefold()
-    # Guard against customer symptom phrasing that uses "wrong" or "incorrect" to describe telemetry or reports
     if re.search(r"\b(wrong|incorrect)\s+(distance|report|speed|location|reading|address|data|mileage|km|odometer|time|alert|route|playback)\b", clean):
         return False
     return bool(NEGATIVE_PATTERN.search(clean))
+
 
 def _is_affirmative(text: str) -> bool:
     if not text:
@@ -60,6 +68,7 @@ def _is_affirmative(text: str) -> bool:
     if _is_negative(t):
         return False
     return bool(AFFIRMATIVE_PATTERN.search(t))
+
 
 def _is_fix_confirmed(text: str) -> bool:
     if not text:
@@ -83,6 +92,16 @@ def _get_rag_guidance(runtime: Any, query: str, default_text: str) -> str:
     return default_text
 
 
+def _refetch_snapshot(runtime: Any, vehicle_no: str, session_id: str) -> dict[str, Any] | None:
+    """Re-fetch vehicle snapshot from API and return raw dict, or None on failure."""
+    try:
+        refreshed = runtime.vehicle_client.get_vehicle(vehicle_no)
+        return refreshed.model_dump(mode="json")
+    except Exception as exc:
+        logger.warning(f"[CHECK_CONFIG] Could not re-fetch vehicle snapshot: {exc}", extra={"session_id": session_id})
+        return None
+
+
 def make_node(runtime: Any):
     def node(state: AssistantState) -> dict[str, Any]:
         session_id = state.get("session_id", "-")
@@ -92,13 +111,13 @@ def make_node(runtime: Any):
         vehicle_no = state.get("vehicle_no") or snapshot_dict.get("vehicle_no", "Unknown")
 
         logger.info(
-            f"[CHECK_CONFIG] Start check_config: awaiting='{awaiting}', vehicle='{vehicle_no}'",
+            f"[CHECK_CONFIG] Start: awaiting='{awaiting}', vehicle='{vehicle_no}', diag_stage='{state.get('check_config_diag_stage')}'",
             extra={"session_id": session_id},
         )
 
         updates: dict[str, Any] = {"current_step": "check_config"}
 
-        # Check if user message matches an active known bug early
+        # ── Known bug early-exit ─────────────────────────────────────────────
         bug_store = getattr(runtime, "bug_store", None)
         if bug_store is not None and user_message:
             try:
@@ -126,10 +145,84 @@ def make_node(runtime: Any):
             except Exception as e:
                 logger.warning(f"[CHECK_CONFIG] Known bug search error: {e}")
 
-        # -----------------------------------------------------------------
-        # Multi-turn reply handling based on awaiting state
-        # -----------------------------------------------------------------
-        if awaiting == "config_port_confirm":
+        # ════════════════════════════════════════════════════════════════════
+        # MULTI-TURN REPLY HANDLERS  (awaiting states)
+        # ════════════════════════════════════════════════════════════════════
+
+        # ── PRE-FLIGHT re-check: user configured missing IMEI ────────────────
+        if awaiting == "config_imei_configure_confirm":
+            if _is_fix_confirmed(user_message):
+                new_snap = _refetch_snapshot(runtime, vehicle_no, session_id)
+                if new_snap is None:
+                    return {**updates, "current_step": "human_handoff", "handoff_reason": "vehicle_api_recheck_failed",
+                            "response": "I couldn't verify the IMEI configuration due to an API error. Transferring you to support.", "awaiting": "none"}
+                snapshot_dict = new_snap
+                updates["vehicle_snapshot"] = snapshot_dict
+                imei = str(snapshot_dict.get("imei") or "").strip()
+                if imei:
+                    updates["config_imei_status"] = ValidationStatus.VALID.value
+                    state = {**state, "vehicle_snapshot": snapshot_dict, "config_imei_status": ValidationStatus.VALID.value, "awaiting": "none"}
+                else:
+                    return {**updates, "config_imei_status": ValidationStatus.INVALID.value, "current_step": "human_handoff",
+                            "handoff_reason": "imei_still_missing_after_configure",
+                            "response": f"The IMEI for vehicle {vehicle_no} is still not showing in the system after reconfiguration. Transferring you to support.", "awaiting": "none"}
+            elif _is_negative(user_message):
+                return {**updates, "config_imei_status": ValidationStatus.INVALID.value, "current_step": "human_handoff",
+                        "handoff_reason": "imei_configuration_declined",
+                        "response": f"I understand. Transferring you to our technical support team to configure the IMEI for vehicle {vehicle_no}.", "awaiting": "none"}
+            else:
+                return {**updates, "response": "Please let me know once you have configured the IMEI, or reply 'no' if you need assistance.", "awaiting": "config_imei_configure_confirm"}
+
+        # ── PRE-FLIGHT re-check: user configured missing port ────────────────
+        elif awaiting == "config_port_missing_confirm":
+            if _is_fix_confirmed(user_message):
+                new_snap = _refetch_snapshot(runtime, vehicle_no, session_id)
+                if new_snap is None:
+                    return {**updates, "current_step": "human_handoff", "handoff_reason": "vehicle_api_recheck_failed",
+                            "response": "I couldn't verify the port configuration due to an API error. Transferring you to support.", "awaiting": "none"}
+                snapshot_dict = new_snap
+                updates["vehicle_snapshot"] = snapshot_dict
+                port = snapshot_dict.get("port")
+                if is_port_configured(port):
+                    updates["config_port_status"] = ValidationStatus.VALID.value
+                    state = {**state, "vehicle_snapshot": snapshot_dict, "config_port_status": ValidationStatus.VALID.value, "awaiting": "none"}
+                else:
+                    return {**updates, "config_port_status": ValidationStatus.INVALID.value, "current_step": "human_handoff",
+                            "handoff_reason": "port_still_missing_after_configure",
+                            "response": f"The port for vehicle {vehicle_no} is still not configured in the system. Transferring you to support.", "awaiting": "none"}
+            elif _is_negative(user_message):
+                return {**updates, "config_port_status": ValidationStatus.INVALID.value, "current_step": "human_handoff",
+                        "handoff_reason": "port_configuration_declined",
+                        "response": f"I understand. Transferring you to our technical support team to configure the communication port for vehicle {vehicle_no}.", "awaiting": "none"}
+            else:
+                return {**updates, "response": "Please let me know once you have configured the port, or reply 'no' if you need assistance.", "awaiting": "config_port_missing_confirm"}
+
+        # ── PRE-FLIGHT re-check: user configured missing device type ─────────
+        elif awaiting == "config_device_type_missing_confirm":
+            if _is_fix_confirmed(user_message):
+                new_snap = _refetch_snapshot(runtime, vehicle_no, session_id)
+                if new_snap is None:
+                    return {**updates, "current_step": "human_handoff", "handoff_reason": "vehicle_api_recheck_failed",
+                            "response": "I couldn't verify the device type configuration due to an API error. Transferring you to support.", "awaiting": "none"}
+                snapshot_dict = new_snap
+                updates["vehicle_snapshot"] = snapshot_dict
+                device_type = str(snapshot_dict.get("deviceType") or snapshot_dict.get("device_type") or "").strip()
+                if device_type:
+                    updates["config_device_type_status"] = ValidationStatus.VALID.value
+                    state = {**state, "vehicle_snapshot": snapshot_dict, "config_device_type_status": ValidationStatus.VALID.value, "awaiting": "none"}
+                else:
+                    return {**updates, "config_device_type_status": ValidationStatus.INVALID.value, "current_step": "human_handoff",
+                            "handoff_reason": "device_type_still_missing_after_configure",
+                            "response": f"The device type for vehicle {vehicle_no} is still not configured in the system. Transferring you to support.", "awaiting": "none"}
+            elif _is_negative(user_message):
+                return {**updates, "config_device_type_status": ValidationStatus.INVALID.value, "current_step": "human_handoff",
+                        "handoff_reason": "device_type_configuration_declined",
+                        "response": f"I understand. Transferring you to our technical support team to configure the device type for vehicle {vehicle_no}.", "awaiting": "none"}
+            else:
+                return {**updates, "response": "Please let me know once you have configured the device type, or reply 'no' if you need assistance.", "awaiting": "config_device_type_missing_confirm"}
+
+        # ── Existing awaiting: port confirmed by client ──────────────────────
+        elif awaiting == "config_port_confirm":
             if _is_affirmative(user_message):
                 logger.info("[CHECK_CONFIG] Port confirmed by client", extra={"session_id": session_id})
                 updates["config_port_status"] = ValidationStatus.VALID.value
@@ -150,12 +243,9 @@ def make_node(runtime: Any):
                 }
             else:
                 port = snapshot_dict.get("port")
-                return {
-                    **updates,
-                    "response": f"Please confirm with 'yes' or 'no': Is the device configured on port {port}?",
-                    "awaiting": "config_port_confirm",
-                }
+                return {**updates, "response": f"Please confirm with 'yes' or 'no': Is the device configured on port {port}?", "awaiting": "config_port_confirm"}
 
+        # ── Existing awaiting: device type confirmed by client ───────────────
         elif awaiting == "config_device_type_confirm":
             if _is_affirmative(user_message):
                 logger.info("[CHECK_CONFIG] Device type confirmed by client", extra={"session_id": session_id})
@@ -177,21 +267,16 @@ def make_node(runtime: Any):
                 }
             else:
                 dtype = snapshot_dict.get("device_type")
-                return {
-                    **updates,
-                    "response": f"Please confirm with 'yes' or 'no': Is your installed device model '{dtype}'?",
-                    "awaiting": "config_device_type_confirm",
-                }
+                return {**updates, "response": f"Please confirm with 'yes' or 'no': Is your installed device model '{dtype}'?", "awaiting": "config_device_type_confirm"}
 
+        # ── Existing awaiting: port mismatch fix confirmed ───────────────────
         elif awaiting == "config_port_fix_confirm":
             if _is_fix_confirmed(user_message):
                 logger.info("[CHECK_CONFIG] Client confirmed port was updated/reconfigured", extra={"session_id": session_id})
-                try:
-                    refreshed = runtime.vehicle_client.get_vehicle(vehicle_no)
-                    snapshot_dict = refreshed.model_dump(mode="json")
+                new_snap = _refetch_snapshot(runtime, vehicle_no, session_id)
+                if new_snap:
+                    snapshot_dict = new_snap
                     updates["vehicle_snapshot"] = snapshot_dict
-                except Exception as exc:
-                    logger.warning(f"[CHECK_CONFIG] Could not re-fetch vehicle snapshot: {exc}", extra={"session_id": session_id})
                 updates["config_port_status"] = ValidationStatus.VALID.value
                 state = {**state, "vehicle_snapshot": snapshot_dict, "config_port_status": ValidationStatus.VALID.value, "awaiting": "none"}
             elif _is_negative(user_message):
@@ -210,28 +295,17 @@ def make_node(runtime: Any):
             else:
                 device_type = snapshot_dict.get("device_type")
                 expected_port = get_expected_port(device_type) or "the required port"
-                return {
-                    **updates,
-                    "response": f"Please let me know once you have updated the port to {expected_port}, or reply 'no' if you need technical support to assist you.",
-                    "awaiting": "config_port_fix_confirm",
-                }
+                return {**updates, "response": f"Please let me know once you have updated the port to {expected_port}, or reply 'no' if you need technical support to assist you.", "awaiting": "config_port_fix_confirm"}
 
+        # ── Existing awaiting: subscription renewal confirm ──────────────────
         elif awaiting == "subscription_renewal_confirm":
             logger.info("[CHECK_CONFIG] Client reports subscription renewal, re-fetching API...", extra={"session_id": session_id})
-            try:
-                refreshed = runtime.vehicle_client.get_vehicle(vehicle_no)
-                snapshot_dict = refreshed.model_dump(mode="json")
-                updates["vehicle_snapshot"] = snapshot_dict
-            except Exception as exc:
-                logger.error(f"[CHECK_CONFIG] Failed to re-fetch vehicle snapshot: {exc}", extra={"session_id": session_id})
-                return {
-                    **updates,
-                    "current_step": "human_handoff",
-                    "handoff_reason": "vehicle_api_recheck_failed",
-                    "response": "I couldn't verify the renewed vehicle subscription due to an API error. Transferring you to support.",
-                    "awaiting": "none",
-                }
-
+            new_snap = _refetch_snapshot(runtime, vehicle_no, session_id)
+            if new_snap is None:
+                return {**updates, "current_step": "human_handoff", "handoff_reason": "vehicle_api_recheck_failed",
+                        "response": "I couldn't verify the renewed vehicle subscription due to an API error. Transferring you to support.", "awaiting": "none"}
+            snapshot_dict = new_snap
+            updates["vehicle_snapshot"] = snapshot_dict
             v_status = snapshot_dict.get("vehicle_status") or ""
             if v_status.casefold() == "active":
                 logger.info("[CHECK_CONFIG] Vehicle verified active after renewal", extra={"session_id": session_id})
@@ -251,22 +325,15 @@ def make_node(runtime: Any):
                     "awaiting": "none",
                 }
 
+        # ── Existing awaiting: device activation confirm ─────────────────────
         elif awaiting == "device_activation_confirm":
             logger.info("[CHECK_CONFIG] Client reports device activation, re-fetching API...", extra={"session_id": session_id})
-            try:
-                refreshed = runtime.vehicle_client.get_vehicle(vehicle_no)
-                snapshot_dict = refreshed.model_dump(mode="json")
-                updates["vehicle_snapshot"] = snapshot_dict
-            except Exception as exc:
-                logger.error(f"[CHECK_CONFIG] Failed to re-fetch device status: {exc}", extra={"session_id": session_id})
-                return {
-                    **updates,
-                    "current_step": "human_handoff",
-                    "handoff_reason": "device_api_recheck_failed",
-                    "response": "I couldn't verify the device status due to an API error. Transferring you to support.",
-                    "awaiting": "none",
-                }
-
+            new_snap = _refetch_snapshot(runtime, vehicle_no, session_id)
+            if new_snap is None:
+                return {**updates, "current_step": "human_handoff", "handoff_reason": "device_api_recheck_failed",
+                        "response": "I couldn't verify the device status due to an API error. Transferring you to support.", "awaiting": "none"}
+            snapshot_dict = new_snap
+            updates["vehicle_snapshot"] = snapshot_dict
             d_status = snapshot_dict.get("device_status") or ""
             if d_status.casefold() == "active":
                 logger.info("[CHECK_CONFIG] Device verified active after activation", extra={"session_id": session_id})
@@ -286,16 +353,11 @@ def make_node(runtime: Any):
                     "awaiting": "none",
                 }
 
+        # ── Existing awaiting: move vehicle confirm ──────────────────────────
         elif awaiting == "config_move_vehicle":
             if _is_affirmative(user_message):
                 logger.info("[CHECK_CONFIG] Client confirmed vehicle location updated after move", extra={"session_id": session_id})
-                return {
-                    **updates,
-                    "current_step": "fault_classifier",
-                    "response": "The vehicle location is updating properly.",
-                    "awaiting": "none",
-                    "config_step": "completed",
-                }
+                return {**updates, "current_step": "fault_classifier", "response": "The vehicle location is updating properly.", "awaiting": "none", "config_step": "completed"}
             elif _is_negative(user_message):
                 logger.warning("[CHECK_CONFIG] Location still not updating after vehicle move", extra={"session_id": session_id})
                 return {
@@ -309,23 +371,172 @@ def make_node(runtime: Any):
                     "awaiting": "none",
                 }
             else:
+                return {**updates, "response": "Did the vehicle's location update on your dashboard after moving it? Please reply with 'yes' or 'no'.", "awaiting": "config_move_vehicle"}
+
+        # ════════════════════════════════════════════════════════════════════
+        # SEQUENTIAL VALIDATION
+        # ════════════════════════════════════════════════════════════════════
+
+        # Pull fresh raw fields (API uses camelCase, VehicleSnapshot uses snake_case)
+        raw = snapshot_dict.get("raw_payload", {}).get("data", snapshot_dict)
+        port = snapshot_dict.get("port") or raw.get("port")
+        device_type = (
+            snapshot_dict.get("device_type")
+            or raw.get("deviceType")
+            or ""
+        )
+        device_type = str(device_type).strip()
+        imei = str(snapshot_dict.get("imei") or raw.get("imei") or "").strip()
+        lu_raw = snapshot_dict.get("lu") or raw.get("lu") or ""
+        sub_due = snapshot_dict.get("subscription_due") or raw.get("subscriptionDue") or ""
+        sub_start = raw.get("subscriptionStart") or ""
+
+        # ── PRE-FLIGHT 1: lu must not be empty ───────────────────────────────
+        if not str(lu_raw).strip():
+            logger.warning("[CHECK_CONFIG] 'lu' (last update) field is empty in API response", extra={"session_id": session_id})
+            return {
+                **updates,
+                "lu_status": ValidationStatus.UNKNOWN.value,
+                "current_step": "human_handoff",
+                "handoff_reason": "lu_field_missing_in_api",
+                "response": (
+                    f"We're unable to determine the last update time for vehicle {vehicle_no} "
+                    "as the field is missing in system records. Transferring you to support."
+                ),
+                "awaiting": "none",
+            }
+
+        # ── PRE-FLIGHT 2: subscriptionDue must not be empty ──────────────────
+        if not str(sub_due).strip():
+            logger.warning("[CHECK_CONFIG] 'subscriptionDue' field is empty", extra={"session_id": session_id})
+            return {
+                **updates,
+                "current_step": "human_handoff",
+                "handoff_reason": "subscription_due_field_missing",
+                "response": (
+                    f"The subscription due date for vehicle {vehicle_no} is not recorded in the system. "
+                    "Transferring you to support to verify the account."
+                ),
+                "awaiting": "none",
+            }
+
+        # ── PRE-FLIGHT 3: subscriptionStart must not be empty ────────────────
+        if not str(sub_start).strip():
+            logger.warning("[CHECK_CONFIG] 'subscriptionStart' field is empty", extra={"session_id": session_id})
+            return {
+                **updates,
+                "current_step": "human_handoff",
+                "handoff_reason": "subscription_start_field_missing",
+                "response": (
+                    f"The subscription start date for vehicle {vehicle_no} is not recorded in the system. "
+                    "Transferring you to support to verify the account."
+                ),
+                "awaiting": "none",
+            }
+
+        # ── PRE-FLIGHT 4: deviceType must not be empty ───────────────────────
+        if not device_type:
+            logger.warning("[CHECK_CONFIG] 'deviceType' is missing", extra={"session_id": session_id})
+            return {
+                **updates,
+                "config_device_type_status": ValidationStatus.INVALID.value,
+                "response": (
+                    f"The device type (tracker model) for vehicle {vehicle_no} is not configured in the system. "
+                    "Please configure the correct device model in your TrackoBit dashboard under Vehicle/Device Management, "
+                    "then let me know once it's done."
+                ),
+                "awaiting": "config_device_type_missing_confirm",
+                "current_step": "check_config",
+            }
+
+        # ── PRE-FLIGHT 5: vehicleStatus must be Active ───────────────────────
+        vehicle_status = str(snapshot_dict.get("vehicle_status") or raw.get("vehicleStatus") or "").strip()
+        if vehicle_status.casefold() != "active":
+            is_expired = False
+            if sub_due:
+                try:
+                    if isinstance(sub_due, str):
+                        # Handle dd/MM/yyyy format from API
+                        try:
+                            due_dt = datetime.strptime(sub_due.strip(), "%d/%m/%Y")
+                        except ValueError:
+                            due_dt = datetime.fromisoformat(sub_due.replace("Z", "+00:00"))
+                        is_expired = due_dt.date() < datetime.now().date()
+                    elif isinstance(sub_due, datetime):
+                        is_expired = sub_due.date() < datetime.now().date()
+                except (ValueError, TypeError):
+                    is_expired = False
+
+            if is_expired:
+                guidance = _get_rag_guidance(
+                    runtime,
+                    "subscription renewal",
+                    "To renew: Navigate to Billing & Subscriptions in your TrackoBit portal, select the vehicle, and complete renewal payment.",
+                )
                 return {
                     **updates,
-                    "response": "Did the vehicle's location update on your dashboard after moving it? Please reply with 'yes' or 'no'.",
-                    "awaiting": "config_move_vehicle",
+                    "subscription_status": ValidationStatus.INVALID.value,
+                    "response": (
+                        f"⚠️ The subscription for vehicle **{vehicle_no}** has expired "
+                        f"(due date: {sub_due}).\n\n"
+                        f"{guidance}\n\n"
+                        "Please renew your subscription and let me know once it's done."
+                    ),
+                    "awaiting": "subscription_renewal_confirm",
+                    "current_step": "check_config",
+                }
+            else:
+                logger.warning("[CHECK_CONFIG] Vehicle inactive with unexpired or unknown subscription", extra={"session_id": session_id})
+                return {
+                    **updates,
+                    "subscription_status": ValidationStatus.UNKNOWN.value,
+                    "current_step": "human_handoff",
+                    "handoff_reason": "vehicle_inactive_unexplained",
+                    "response": (
+                        f"Vehicle {vehicle_no} is marked Inactive in the system, but the subscription does not appear to be expired. "
+                        "Transferring you to our support team to verify the account status."
+                    ),
+                    "awaiting": "none",
                 }
 
-        # -----------------------------------------------------------------
-        # Sequential Configuration & Status Validation
-        # -----------------------------------------------------------------
-        port = snapshot_dict.get("port")
-        device_type = snapshot_dict.get("device_type")
+        # ── PRE-FLIGHT 6: imei must not be empty ─────────────────────────────
+        if state.get("config_imei_status") != ValidationStatus.VALID.value:
+            if not imei:
+                logger.warning("[CHECK_CONFIG] 'imei' is missing", extra={"session_id": session_id})
+                return {
+                    **updates,
+                    "config_imei_status": ValidationStatus.INVALID.value,
+                    "response": (
+                        f"The IMEI number for vehicle {vehicle_no} is not configured in the system. "
+                        "Please update the IMEI in your TrackoBit dashboard under Vehicle/Device Management, "
+                        "then let me know once it's done."
+                    ),
+                    "awaiting": "config_imei_configure_confirm",
+                    "current_step": "check_config",
+                }
+            updates["config_imei_status"] = ValidationStatus.VALID.value
 
-        # 1. Port & Device Type checks
-        # Rules:
-        # - If status is unreachable and lu > 10m: validate BOTH device type and port (with mismatch guidance).
-        # - If status is unreachable but lu <= 10m: acknowledge / validate device type ONLY (bypass port check).
-        # - If status is not unreachable: bypass both.
+        # ── PRE-FLIGHT 7: port must not be empty ─────────────────────────────
+        if state.get("config_port_status") != ValidationStatus.VALID.value:
+            if not is_port_configured(port):
+                logger.warning("[CHECK_CONFIG] 'port' is missing or zero", extra={"session_id": session_id})
+                device_type_label = device_type or "your tracker"
+                expected_port = get_expected_port(device_type)
+                port_hint = f" ({device_type_label} typically uses port {expected_port})" if expected_port else ""
+                return {
+                    **updates,
+                    "config_port_status": ValidationStatus.INVALID.value,
+                    "response": (
+                        f"The communication port for vehicle {vehicle_no} is not configured in the system{port_hint}. "
+                        "Please configure the correct port in your TrackoBit dashboard, then let me know once it's done."
+                    ),
+                    "awaiting": "config_port_missing_confirm",
+                    "current_step": "check_config",
+                }
+
+        # ════════════════════════════════════════════════════════════════════
+        # EXISTING CHECKS: Device type & port confirmation (when unreachable)
+        # ════════════════════════════════════════════════════════════════════
         device_state = str(snapshot_dict.get("state") or snapshot_dict.get("vehicle_status") or "").strip().lower()
         raw_minutes = snapshot_dict.get("minutes_since_last_update")
         try:
@@ -340,20 +551,6 @@ def make_node(runtime: Any):
         should_validate_port = is_unreachable and is_stale_over_10m
 
         if should_validate_device_type:
-            if not device_type or str(device_type).strip() == "":
-                logger.warning("[CHECK_CONFIG] Device type is missing", extra={"session_id": session_id})
-                return {
-                    **updates,
-                    "config_device_type_status": ValidationStatus.INVALID.value,
-                    "current_step": "human_handoff",
-                    "handoff_reason": "missing_device_type",
-                    "response": (
-                        f"The device model for vehicle {vehicle_no} is missing in system records. "
-                        "Transferring you to support."
-                    ),
-                    "awaiting": "none",
-                }
-
             device_type_status = state.get("config_device_type_status")
             if device_type_status != ValidationStatus.VALID.value:
                 return {
@@ -366,22 +563,6 @@ def make_node(runtime: Any):
             updates["config_device_type_status"] = ValidationStatus.VALID.value
 
         if should_validate_port:
-            if not is_port_configured(port):
-                logger.warning("[CHECK_CONFIG] Configured port is not configured (missing, empty, or 0)", extra={"session_id": session_id})
-                expected_port = get_expected_port(device_type)
-                port_hint = f" ({device_type} requires port {expected_port})" if expected_port and is_port_configured(expected_port) else ""
-                return {
-                    **updates,
-                    "config_port_status": ValidationStatus.INVALID.value,
-                    "current_step": "human_handoff",
-                    "handoff_reason": "missing_configured_port",
-                    "response": (
-                        f"The communication port for vehicle {vehicle_no} is not configured in system records{port_hint}. "
-                        "Transferring you to support to configure the port."
-                    ),
-                    "awaiting": "none",
-                }
-
             port_status = state.get("config_port_status")
             if port_status != ValidationStatus.VALID.value:
                 expected_port = get_expected_port(device_type)
@@ -393,70 +574,16 @@ def make_node(runtime: Any):
                         expected_port=expected_port,
                         command_registry=getattr(runtime, "command_registry", None),
                     )
-                    return {
-                        **updates,
-                        "config_port_status": ValidationStatus.INVALID.value,
-                        "response": msg,
-                        "awaiting": "config_port_fix_confirm",
-                        "current_step": "check_config",
-                    }
+                    return {**updates, "config_port_status": ValidationStatus.INVALID.value, "response": msg,
+                            "awaiting": "config_port_fix_confirm", "current_step": "check_config"}
                 else:
-                    return {
-                        **updates,
-                        "response": f"The device is configured on port {port}. Can you please confirm if this matches the port your device is sending data to?",
-                        "awaiting": "config_port_confirm",
-                        "current_step": "check_config",
-                    }
+                    return {**updates,
+                            "response": f"The device is configured on port {port}. Can you please confirm if this matches the port your device is sending data to?",
+                            "awaiting": "config_port_confirm", "current_step": "check_config"}
         else:
             updates["config_port_status"] = ValidationStatus.VALID.value
 
-        # 2. Precedence: Vehicle Status & Subscription Check
-        vehicle_status = str(snapshot_dict.get("vehicle_status") or "").strip()
-        if vehicle_status.casefold() != "active":
-            due = snapshot_dict.get("subscription_due")
-            is_expired = False
-            if due:
-                if isinstance(due, str):
-                    try:
-                        due_dt = datetime.fromisoformat(due)
-                        is_expired = due_dt.date() < datetime.now().date()
-                    except ValueError:
-                        is_expired = False
-                elif isinstance(due, datetime):
-                    is_expired = due.date() < datetime.now().date()
-
-            if is_expired:
-                guidance = _get_rag_guidance(
-                    runtime,
-                    "subscription renewal",
-                    "To renew: Navigate to Billing & Subscriptions in your TrackoBit portal, select the vehicle, and complete renewal payment.",
-                )
-                return {
-                    **updates,
-                    "subscription_status": ValidationStatus.INVALID.value,
-                    "response": (
-                        f"The subscription for vehicle {vehicle_no} has expired.\n\n"
-                        f"{guidance}\n\n"
-                        "Please let me know once you have completed the renewal."
-                    ),
-                    "awaiting": "subscription_renewal_confirm",
-                    "current_step": "check_config",
-                }
-            else:
-                logger.warning("[CHECK_CONFIG] Vehicle inactive with unexpired or unknown subscription", extra={"session_id": session_id})
-                return {
-                    **updates,
-                    "subscription_status": ValidationStatus.UNKNOWN.value,
-                    "current_step": "human_handoff",
-                    "handoff_reason": "vehicle_inactive_unexplained",
-                    "response": (
-                        f"Vehicle {vehicle_no} is marked Inactive in the system, but the subscription is not expired. "
-                        "Transferring you to our support team to verify the account status."
-                    ),
-                    "awaiting": "none",
-                }
-
-        # 3. Device Status Check
+        # ── Device Status ─────────────────────────────────────────────────────
         device_status = str(snapshot_dict.get("device_status") or "").strip()
         if device_status.casefold() != "active":
             guidance = _get_rag_guidance(
@@ -476,8 +603,7 @@ def make_node(runtime: Any):
                 "current_step": "check_config",
             }
 
-        # 4. Overspeeding State & Speeding Threshold Check
-        # User Rule: if the state is shown overspeeding then check speeding threshold field in api
+        # ── Overspeed State Check ─────────────────────────────────────────────
         state_str = str(snapshot_dict.get("state") or "").strip().lower()
         if "overspeed" in state_str:
             speeding_threshold = (
@@ -489,14 +615,14 @@ def make_node(runtime: Any):
                 or snapshot_dict.get("overspeedThreshold")
                 or snapshot_dict.get("speedLimit")
                 or snapshot_dict.get("speed_limit")
-                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speedingThreshold")
-                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speeding_threshold")
-                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speedThreshold")
-                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speed_threshold")
-                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("overspeedThreshold")
-                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("overspeed_threshold")
-                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speedLimit")
-                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speed_limit")
+                or raw.get("speedingThreshold")
+                or raw.get("speeding_threshold")
+                or raw.get("speedThreshold")
+                or raw.get("speed_threshold")
+                or raw.get("overspeedThreshold")
+                or raw.get("overspeed_threshold")
+                or raw.get("speedLimit")
+                or raw.get("speed_limit")
                 or snapshot_dict.get("raw_payload", {}).get("data", {}).get("terminalPacketMeta", {}).get("speedingThreshold")
                 or snapshot_dict.get("raw_payload", {}).get("data", {}).get("terminalPacketMeta", {}).get("speeding_threshold")
             )
@@ -506,10 +632,7 @@ def make_node(runtime: Any):
                 thresh_val = None
 
             if thresh_val is None or thresh_val <= 0:
-                logger.warning(
-                    f"[CHECK_CONFIG] State is overspeeding but speeding threshold is not configured in API",
-                    extra={"session_id": session_id},
-                )
+                logger.warning("[CHECK_CONFIG] State is overspeeding but speeding threshold is not configured in API", extra={"session_id": session_id})
                 return {
                     **updates,
                     "speeding_threshold_status": ValidationStatus.INVALID.value,
@@ -524,7 +647,7 @@ def make_node(runtime: Any):
 
             current_speed = (
                 snapshot_dict.get("speed")
-                or snapshot_dict.get("raw_payload", {}).get("data", {}).get("speed")
+                or raw.get("speed")
                 or snapshot_dict.get("raw_payload", {}).get("data", {}).get("terminalPacketMeta", {}).get("speed")
             )
             try:
@@ -536,10 +659,7 @@ def make_node(runtime: Any):
             updates["speed"] = speed_val
 
             if speed_val is not None and speed_val <= thresh_val:
-                logger.warning(
-                    f"[CHECK_CONFIG] State is overspeeding but speed ({speed_val} km/h) does not exceed threshold ({thresh_val} km/h)",
-                    extra={"session_id": session_id},
-                )
+                logger.warning(f"[CHECK_CONFIG] State is overspeeding but speed ({speed_val}) does not exceed threshold ({thresh_val})", extra={"session_id": session_id})
                 return {
                     **updates,
                     "speeding_threshold_status": ValidationStatus.INVALID.value,
@@ -553,13 +673,10 @@ def make_node(runtime: Any):
                     "awaiting": "none",
                 }
 
-            logger.info(
-                f"[CHECK_CONFIG] Overspeeding state verified with API speeding threshold: {thresh_val} km/h (speed: {speed_val} km/h)",
-                extra={"session_id": session_id},
-            )
+            logger.info(f"[CHECK_CONFIG] Overspeeding state verified: threshold={thresh_val} km/h, speed={speed_val} km/h", extra={"session_id": session_id})
             updates["speeding_threshold_status"] = ValidationStatus.VALID.value
 
-        # 5. lu & since Validation
+        # ── lu / since Validation ─────────────────────────────────────────────
         minutes = snapshot_dict.get("minutes_since_last_update")
         try:
             minutes = float(minutes) if minutes is not None else None
@@ -567,7 +684,7 @@ def make_node(runtime: Any):
             minutes = None
 
         if minutes is None:
-            logger.warning("[CHECK_CONFIG] lu is missing or invalid", extra={"session_id": session_id})
+            logger.warning("[CHECK_CONFIG] minutes_since_last_update is missing or invalid", extra={"session_id": session_id})
             return {
                 **updates,
                 "lu_status": ValidationStatus.UNKNOWN.value,
@@ -578,63 +695,107 @@ def make_node(runtime: Any):
             }
 
         hours_since = snapshot_dict.get("hours_since_status")
-        if hours_since is not None and hours_since > 24.0:
-            updates["since_status"] = ValidationStatus.INVALID.value
-        else:
-            updates["since_status"] = ValidationStatus.VALID.value
+        updates["since_status"] = ValidationStatus.INVALID.value if (hours_since is not None and hours_since > 24.0) else ValidationStatus.VALID.value
 
-        # Fresh update (lu <= 5 minutes): bypass stale diagnostics and movement
+        # ── lu <= 5 min: fresh → proceed to fault_classifier ─────────────────
         if minutes <= 5.0:
-            logger.info(f"[CHECK_CONFIG] lu is fresh ({minutes:.1f} mins). Routing to fault_classifier", extra={"session_id": session_id})
-            updates["lu_status"] = ValidationStatus.VALID.value
+            logger.info(f"[CHECK_CONFIG] lu is fresh ({minutes:.1f} mins) → fault_classifier", extra={"session_id": session_id})
             return {
                 **updates,
+                "lu_status": ValidationStatus.VALID.value,
                 "current_step": "fault_classifier",
                 "awaiting": "none",
                 "config_step": "completed",
+                "check_config_diag_stage": None,
             }
 
-        # Stale update (lu > 5 minutes): run modular diagnostics
-        logger.info(f"[CHECK_CONFIG] lu is stale ({minutes:.1f} mins). Running packet diagnostics...", extra={"session_id": session_id})
+        # ════════════════════════════════════════════════════════════════════
+        # lu > 5 min: COMMAND-BASED STALE DIAGNOSIS
+        # ════════════════════════════════════════════════════════════════════
+        logger.info(f"[CHECK_CONFIG] lu is stale ({minutes:.1f} mins) → command-based diagnosis", extra={"session_id": session_id})
         updates["lu_status"] = ValidationStatus.INVALID.value
 
-        snapshot_obj = VehicleSnapshot(**snapshot_dict)
-        diag_ip = check_ip(snapshot_obj)
-        diag_port = check_port(snapshot_obj)
-        diag_imei = check_imei(snapshot_obj)
+        command_registry = getattr(runtime, "command_registry", None)
+        diag_stage = state.get("check_config_diag_stage") or "status"
 
-        diagnostics_map = {
-            "check_ip": diag_ip.model_dump(mode="json"),
-            "check_port": diag_port.model_dump(mode="json"),
-            "check_imei": diag_imei.model_dump(mode="json"),
-        }
-        updates["stale_diagnostics"] = diagnostics_map
+        if diag_stage in ("status", None, ""):
+            # ── Step A: STATUS command ────────────────────────────────────────
+            if not device_type:
+                # Should have been caught in pre-flight but guard here too
+                return {
+                    **updates,
+                    "response": (
+                        f"The device type for vehicle {vehicle_no} is not configured — I need it to look up the diagnostic command. "
+                        "Please configure the device model and let me know once done."
+                    ),
+                    "awaiting": "config_device_type_missing_confirm",
+                    "current_step": "check_config",
+                    "check_config_diag_stage": "status",
+                }
 
-        # Check if all required diagnostics are VALID
-        all_valid = all(d.status == ValidationStatus.VALID for d in [diag_ip, diag_port, diag_imei])
-        if not all_valid:
-            logger.warning("[CHECK_CONFIG] Stale diagnostics are unavailable or unverified; escalating safely", extra={"session_id": session_id})
+            status_cmd = get_status_command(device_type, command_registry) if command_registry else None
+            instruction = describe_status_command(status_cmd, device_type)
+
+            logger.info(
+                f"[CHECK_CONFIG] Presenting STATUS command for device_type='{device_type}': '{status_cmd.command if status_cmd else 'N/A'}'",
+                extra={"session_id": session_id},
+            )
             return {
                 **updates,
-                "current_step": "human_handoff",
-                "handoff_reason": "stale_packets_diagnostics_unavailable",
+                "check_config_diag_stage": "status",
+                "current_command": status_cmd.model_dump(mode="json") if status_cmd else None,
+                "lu_status": ValidationStatus.INVALID.value,
                 "response": (
-                    f"The vehicle's last update was {minutes:.1f} minutes ago. "
-                    "Diagnostic packet checks (IP, port, and gateway logs) are currently unavailable in the automated system. "
-                    "I am transferring your request to our technical support team with all collected configuration and telemetry data."
+                    f"The vehicle's last data update was **{minutes:.0f} minutes ago**, which indicates the device may not be communicating with the server.\n\n"
+                    f"To diagnose this, please run the **STATUS command**:\n\n"
+                    f"{instruction}\n\n"
+                    "Once you have the reply, share a clear screenshot and I'll analyse it."
                 ),
-                "awaiting": "none",
+                "awaiting": "command_screenshot",
+                "current_step": "check_config",
             }
 
-        # If all diagnostics were valid (future implementation), ask client to move vehicle
+        elif diag_stage == "param":
+            # ── Step B: PARAM command ─────────────────────────────────────────
+            param_cmd = get_param_command(device_type, command_registry) if command_registry else None
+
+            if param_cmd is None:
+                logger.warning(f"[CHECK_CONFIG] No PARAM command found for '{device_type}'; proceeding to fault_classifier", extra={"session_id": session_id})
+                return {
+                    **updates,
+                    "check_config_diag_stage": None,
+                    "current_step": "fault_classifier",
+                    "awaiting": "none",
+                    "config_step": "completed",
+                    "response": "",
+                }
+
+            logger.info(
+                f"[CHECK_CONFIG] Presenting PARAM command for device_type='{device_type}': '{param_cmd.command}'",
+                extra={"session_id": session_id},
+            )
+            return {
+                **updates,
+                "check_config_diag_stage": "param",
+                "current_command": param_cmd.model_dump(mode="json"),
+                "response": (
+                    "The STATUS check looks fine. Now let's verify the device's server and IMEI configuration.\n\n"
+                    f"Please run the **PARAM command**:\n\n"
+                    f"Send `{param_cmd.command}` to the device via SMS or the TrackoBit command terminal, "
+                    "and share a clear screenshot of the full reply."
+                ),
+                "awaiting": "command_screenshot",
+                "current_step": "check_config",
+            }
+
+        # Fallback safety net
+        logger.warning(f"[CHECK_CONFIG] Unexpected diag_stage='{diag_stage}'; routing to fault_classifier", extra={"session_id": session_id})
         return {
             **updates,
-            "response": (
-                "Configuration and diagnostic checks have passed. Please take the vehicle for a short 2-3 minute "
-                "drive with ignition ON, and let me know if the live location updates on your dashboard."
-            ),
-            "awaiting": "config_move_vehicle",
-            "current_step": "check_config",
+            "check_config_diag_stage": None,
+            "current_step": "fault_classifier",
+            "awaiting": "none",
+            "config_step": "completed",
         }
 
     return node

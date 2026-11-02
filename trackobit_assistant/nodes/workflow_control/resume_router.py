@@ -22,6 +22,7 @@ def _resume_target(state):
             'subscription_renewal_confirm': 'check_config', 'device_activation_confirm': 'check_config',
             'config_move_vehicle': 'check_config',
             'module_choice': 'module_disambiguator',
+            'software_refresh_confirm': 'create_bug_ticket',
         }.get(awaiting, 'clarify_node')
     else:
         target = {
@@ -33,6 +34,7 @@ def _resume_target(state):
             'subscription_renewal_confirm': 'check_config', 'device_activation_confirm': 'check_config',
             'config_move_vehicle': 'check_config',
             'module_choice': 'module_disambiguator',
+            'software_refresh_confirm': 'create_bug_ticket',
         }.get(awaiting, 'clarify_node')
 
     if target == 'clarify_node':

@@ -168,6 +168,21 @@ def route_after_screenshot(state):
 def route_after_analyze(state):
     session_id = state.get('session_id', '-')
     verdict = state.get('command_verdict')
+    diag_stage = state.get('check_config_diag_stage')
+    # If we are in a check_config command-based diagnostic loop, route back accordingly
+    if diag_stage in ('status', 'param'):
+        if verdict == 'issue_found':
+            target = 'diagnosis_result'
+        elif verdict == 'ok':
+            # status clean -> move to param stage; param clean -> fault_classifier
+            target = 'check_config' if diag_stage == 'status' else 'fault_classifier'
+        else:
+            target = 'check_config'  # inconclusive: re-present from check_config
+        logger.info(
+            f"[ROUTER: route_after_analyze] check_config_diag_stage='{diag_stage}', verdict='{verdict}' -> routing to '{target}'",
+            extra={'session_id': session_id}
+        )
+        return target
     if verdict == 'issue_found': target = 'diagnosis_result'
     elif verdict == 'ok': target = 'resolution_check'
     else: target = 'select_command'
@@ -230,8 +245,15 @@ def route_after_clarify(state):
 
 def route_after_software_ticket(state):
     session_id = state.get('session_id', '-')
-    target = 'human_handoff' if state.get('handoff_reason') == 'software_ticket_create_failed' else 'notify_user'
-    logger.info(f"[ROUTER: route_after_software_ticket] handoff_reason='{state.get('handoff_reason')}' -> routing to '{target}'", extra={'session_id': session_id})
+    # Pause: waiting for user to confirm if refresh fixed it
+    if state.get('awaiting') == 'software_refresh_confirm':
+        target = 'save_session'
+    elif state.get('current_step') == 'complete_frame':
+        # Both resolved and ticket-created paths end cleanly via notify_user
+        target = 'notify_user'
+    else:
+        target = 'notify_user'
+    logger.info(f"[ROUTER: route_after_software_ticket] awaiting='{state.get('awaiting')}', step='{state.get('current_step')}' -> routing to '{target}'", extra={'session_id': session_id})
     return target
 
 def route_after_fault_diagnosis(state):

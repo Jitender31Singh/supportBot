@@ -54,7 +54,7 @@ def build_graph(runtime: Runtime):
       'human_handoff':'human_handoff','save_session':'save_session',
       'process_screenshot':'process_screenshot','resolution_check':'resolution_check'})
     graph.add_edge('account_advice','resolution_check')
-    graph.add_conditional_edges('create_bug_ticket',routes.route_after_software_ticket,{'human_handoff':'human_handoff','notify_user':'notify_user'})
+    graph.add_conditional_edges('create_bug_ticket',routes.route_after_software_ticket,{'human_handoff':'human_handoff','notify_user':'notify_user','save_session':'save_session'})
     graph.add_edge('notify_user','complete_frame')
     graph.add_edge('basic_troubleshooting','save_session')
     graph.add_edge('recheck_vehicle_info','fetch_vehicle_info')
@@ -65,7 +65,8 @@ def build_graph(runtime: Runtime):
     graph.add_conditional_edges('process_screenshot',routes.route_after_screenshot,{
       'human_handoff':'human_handoff','analyze_output':'analyze_output','save_session':'save_session'})
     graph.add_conditional_edges('analyze_output',routes.route_after_analyze,{
-      'diagnosis_result':'diagnosis_result','resolution_check':'resolution_check','select_command':'select_command'})
+      'diagnosis_result':'diagnosis_result','resolution_check':'resolution_check','select_command':'select_command',
+      'check_config':'check_config','fault_classifier':'fault_classifier'})
     graph.add_edge('diagnosis_result','save_session')
     graph.add_conditional_edges('resolution_handler',routes.route_after_resolution,{
       'close_session':'close_session','select_command':'select_command','save_session':'save_session','human_handoff':'human_handoff'})

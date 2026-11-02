@@ -85,3 +85,5 @@ class AssistantState(TypedDict, total=False):
     pending_module_query: str | None
     state_expectation_bucket: str | None
     actual_vehicle_state: str | None
+    check_config_diag_stage: str | None
+    config_imei_status: str | None
