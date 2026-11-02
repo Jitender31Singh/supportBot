@@ -54,6 +54,10 @@ def _parse_text(text: str, output_schema: dict[str, Any] | None = None) -> dict[
     gprs = re.search(r'(?i)(?:gprs|server connection|connected)\s*[:= -]\s*(connected|disconnected|yes|no|true|false|0|1)', text)
     if gprs and (not wanted or 'gprs_connected' in wanted):
         out['gprs_connected'] = gprs.group(1).casefold() in {'connected', 'yes', 'true', '1'}
+    # ACC / ignition field: ACC:1, ACC:ON, ACC:0, ACC:OFF (Concox STATUS# and compatible devices)
+    acc_match = re.search(r'(?i)\bACC\s*[:=]\s*(on|off|1|0)\b', text)
+    if acc_match:
+        out['acc'] = acc_match.group(1).strip().casefold()  # 'on'/'1'=ignition ON; 'off'/'0'=ignition OFF
     if re.search(r'(?i)\bSTATUS\s*#', text):
         out['detected_command'] = 'STATUS#'
     elif re.search(r'(?i)\bPARAM\s*#', text):

@@ -2,7 +2,7 @@ import logging
 import re
 from langchain_core.messages import SystemMessage
 from trackobit_assistant.services.vehicle_normaliser import extract_vehicle_no, VEHICLE_NO_SEARCH_PATTERN
-from trackobit_assistant.schemas.models import SymptomsResult
+from trackobit_assistant.schemas.models import SymptomsResult, VehicleStateExpectationBucket
 
 logger = logging.getLogger('trackobit_assistant.nodes.symptom_analyzer')
 
@@ -15,7 +15,12 @@ def make_node(runtime):
             try:
                 prompt = (runtime.prompts.render('symptom_analyzer', user_message=text) if runtime.prompts else f'Extract symptoms from: {text}')
                 result = runtime.llm.with_structured_output(SymptomsResult).invoke([SystemMessage(content=prompt)])
-                logger.info(f"[SYMPTOM_ANALYZER] LLM extracted symptoms: summary='{result.summary}', vehicle='{result.vehicle_no}', urgency='{result.urgency}'", extra={'session_id': session_id})
+                logger.info(
+                    f"[SYMPTOM_ANALYZER] LLM extracted: summary='{result.summary}', "
+                    f"vehicle='{result.vehicle_no}', urgency='{result.urgency}', "
+                    f"bucket='{result.state_expectation_bucket}', dashboard_state='{result.reported_dashboard_state}'",
+                    extra={'session_id': session_id}
+                )
             except Exception as exc:
                 logger.warning(f"[SYMPTOM_ANALYZER] LLM extraction failed ({type(exc).__name__}: {exc}); fallback to regex", extra={'session_id': session_id})
                 result = None
@@ -34,16 +39,38 @@ def make_node(runtime):
         old = state.get('symptoms') or {}
         device_match = re.search(r'(?i)\b(concox\s*v?\d*|teltonika|queclink|meitrack)\b', text)
         summary = (result.summary.strip() if result and result.summary else old.get('summary') or text.strip())
+
+        # Resolve the state expectation bucket
+        bucket = (
+            result.state_expectation_bucket
+            if result and result.state_expectation_bucket
+            else VehicleStateExpectationBucket.GENERAL_ISSUE_STATE
+        )
+        reported_dashboard_state = (
+            result.reported_dashboard_state
+            if result and result.reported_dashboard_state
+            else old.get('reported_dashboard_state')
+        )
+
         symptoms = {
             **old,
             'summary': summary,
             'raw_user_message': text,
-            'urgency': (result.urgency if result else ('high' if any(w in text.casefold() for w in ('urgent', 'emergency', 'stuck', 'safety')) else 'normal'))
+            'urgency': (result.urgency if result else ('high' if any(w in text.casefold() for w in ('urgent', 'emergency', 'stuck', 'safety')) else 'normal')),
+            'state_expectation_bucket': bucket,
+            'reported_dashboard_state': reported_dashboard_state,
         }
         mention = (result.device_type_mention if result else None) or (device_match.group(0) if device_match else None)
-        if mention: symptoms['device_type_mention'] = mention
-        if result and result.user_observation: symptoms['user_observation'] = result.user_observation
-        logger.info(f"[SYMPTOM_ANALYZER] Output: vehicle_no='{vehicle}', device_type='{mention}', urgency='{symptoms.get('urgency')}', summary='{summary[:60]}'", extra={'session_id': session_id})
+        if mention:
+            symptoms['device_type_mention'] = mention
+        if result and result.user_observation:
+            symptoms['user_observation'] = result.user_observation
+
+        logger.info(
+            f"[SYMPTOM_ANALYZER] Output: vehicle_no='{vehicle}', bucket='{bucket}', "
+            f"dashboard_state='{reported_dashboard_state}', urgency='{symptoms.get('urgency')}', summary='{summary[:60]}'",
+            extra={'session_id': session_id}
+        )
 
         # Check for known bugs early if bug_store is configured
         bug_store = getattr(runtime, 'bug_store', None)

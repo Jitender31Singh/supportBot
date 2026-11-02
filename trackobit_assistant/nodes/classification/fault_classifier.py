@@ -1,4 +1,4 @@
-"""Classify a fault deterministically first, using a structured LLM only for ambiguity."""
+"""Classify a fault using state-expectation bucketing first, then deterministic rules, then LLM for ambiguity."""
 from __future__ import annotations
 
 import logging
@@ -12,17 +12,24 @@ logger = logging.getLogger(__name__)
 def make_node(runtime):
     def node(state):
         snapshot = state.get('vehicle_snapshot')
-        # The first user turn can describe the dashboard issue, while the next turn only
-        # supplies a vehicle number. Preserve the original symptom evidence for classification.
         symptoms = state.get('symptoms') or {}
+
+        # Prefer the original symptom evidence over later messages
         dashboard_evidence = (
             state.get('dashboard_evidence')
             or symptoms.get('user_observation')
             or symptoms.get('summary')
             or state.get('last_user_message')
         )
+
+        # Pull the state-expectation bucket set by symptom_analyzer
+        state_expectation_bucket = symptoms.get('state_expectation_bucket')
+
         result = classify_fault(
-            snapshot, dashboard_evidence, runtime.settings.freshness_threshold_minutes
+            snapshot,
+            dashboard_evidence,
+            runtime.settings.freshness_threshold_minutes,
+            state_expectation_bucket=state_expectation_bucket,
         )
 
         if runtime.llm is not None and result.category in {
@@ -42,13 +49,13 @@ def make_node(runtime):
                 candidate = runtime.llm.with_structured_output(FaultResult).invoke(
                     [SystemMessage(content=prompt)]
                 )
-                # The LLM is not allowed to overturn a deterministic high-confidence rule.
                 if candidate.confidence >= runtime.settings.query_confidence_threshold:
                     result = candidate
             except Exception as exc:
                 logger.warning("Fault-classifier LLM failed; retaining deterministic result (%s)", type(exc).__name__)
 
-        return {
+        # For STATE_DISCREPANCY: carry forward the bucket and actual state for fault_diagnosis
+        updates: dict = {
             'fault_category': result.category.value,
             'fault_confidence': result.confidence,
             'fault_evidence': result.evidence,
@@ -58,4 +65,18 @@ def make_node(runtime):
             'response': '',
             'current_step': 'fault_classifier',
         }
+
+        if result.category == FaultCategory.STATE_DISCREPANCY:
+            # Re-compute the normalized actual state for fault_diagnosis to use
+            from trackobit_assistant.services.fault_rules import _normalize_actual_state
+            actual = _normalize_actual_state(snapshot or {})
+            updates['actual_vehicle_state'] = actual
+            updates['state_expectation_bucket'] = state_expectation_bucket
+            logger.info(
+                f"[FAULT_CLASSIFIER] STATE_DISCREPANCY: expected bucket='{state_expectation_bucket}', "
+                f"actual='{actual}'",
+                extra={'session_id': state.get('session_id', '-')}
+            )
+
+        return updates
     return node

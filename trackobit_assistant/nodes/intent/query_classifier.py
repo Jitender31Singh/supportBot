@@ -11,8 +11,31 @@ COMMAND_PHRASES = (
     'command for', 'commands for', 'command of', 'commands of',
     'what command', 'which command', 'what are the commands',
     'what is the command', 'what is the commands', 'commands to', 'command to',
-    'list commands', 'show commands', 'commands list', 'device command', 'device commands'
+    'list commands', 'show commands', 'commands list', 'device command', 'device commands',
+    'sms command', 'sms commands', 'gprs command', 'gprs commands'
 )
+
+STATIC_PATTERNS = (
+    'how do i', 'how to', 'how can i', 'can i', 'where do i', 'where is', 'steps to',
+    'add vehicle', 'create vehicle', 'geofence', 'feature', 'features', 'pricing',
+    'subscription plan', 'subscription', 'report', 'reports', 'export', 'what is', 'policy', 'settings',
+    'documentation', 'guide', 'manual'
+)
+
+SPECIFIC_VEHICLE_TARGET_PHRASES = (
+    'my vehicle', 'this vehicle', 'the vehicle', 'connected with vehicle', 'connected to vehicle',
+    'details of vehicle', 'details of the vehicle', 'check vehicle configuration',
+    'configuration for vehicle', 'vehicle details', 'get vehicle details'
+)
+
+ISSUE_INDICATORS = (
+    'not updating', 'not working', 'offline', 'stopped', 'wrong location',
+    'no location', 'no data', 'delay', 'issue', 'problem', 'fault', 'error',
+    'disconnected', 'tampered', 'battery low'
+)
+
+IMEI_PATTERN = re.compile(r'\b\d{15}\b')
+
 
 def make_node(runtime):
     def node(state):
@@ -29,26 +52,27 @@ def make_node(runtime):
                 'response': ''
             }
 
-        # Check if the query specifically concerns a vehicle (registration number or vehicle status/config inquiry)
+        # 1. Identify specific entities (Vehicle registration number, IMEI, or targeted phrases)
         has_vehicle_no = bool(VEHICLE_NO_SEARCH_PATTERN.search(raw_text))
-        is_vehicle_query = has_vehicle_no or any(phrase in text for phrase in (
-            'vehicle number', 'my vehicle', 'this vehicle', 'for vehicle', 'with vehicle',
-            'connected with vehicle', 'connected to vehicle', 'details of vehicle', 'details of the vehicle',
-            'check vehicle configuration', 'configuration for vehicle', 'vehicle details', 'get vehicle',
-            'another vehicle', 'different vehicle', 'second vehicle', 'another vehicle number', 'other vehicle', 'new vehicle'
-        ))
+        has_imei = bool(IMEI_PATTERN.search(raw_text))
 
         # Check for device command inquiries (e.g. asking for SMS/GPRS command reference)
         found_device = runtime.command_registry.find_device_in_text(raw_text) if getattr(runtime, 'command_registry', None) else None
         is_explicit_cmd = any(k in text for k in COMMAND_PHRASES)
         is_cmd_query = is_explicit_cmd or (
-            ('command' in text or 'commands' in text) and (bool(found_device) or any(w in text for w in ('device', 'tracker', 'device type', 'model', 'sms command')))
+            ('command' in text or 'commands' in text) and (bool(found_device) or any(w in text for w in ('device', 'tracker', 'device type', 'model', 'sms')))
         )
 
-        static = any(k in text for k in (
-            'how do i', 'how to', 'add vehicle', 'geofence', 'feature', 'pricing', 'subscription plan',
-            'report', 'export', 'what is', 'policy', 'settings'
-        ))
+        is_static_inquiry = any(k in text for k in STATIC_PATTERNS)
+        has_issue_reported = any(w in text for w in ISSUE_INDICATORS)
+
+        # Distinguish specific vehicle targeting vs general static how-to inquiries
+        has_specific_target = has_vehicle_no or has_imei or (
+            any(p in text for p in SPECIFIC_VEHICLE_TARGET_PHRASES) and not (is_static_inquiry and not has_vehicle_no)
+        )
+        is_diagnostic_inquiry = (has_specific_target or has_issue_reported) and not (
+            is_static_inquiry and not has_vehicle_no and not has_issue_reported
+        )
 
         result = None
         if runtime.llm is not None:
@@ -60,11 +84,13 @@ def make_node(runtime):
                 logger.warning(f"[QUERY_CLASSIFIER] LLM classification failed ({type(exc).__name__}: {exc}); using keyword baseline", extra={'session_id': session_id})
                 result = None
 
-        # Guardrail: Vehicle-specific status/config/telemetry inquiries must be diagnosis unless explicitly asking for command syntax
-        if is_vehicle_query and not is_explicit_cmd:
+        # Guardrail: Specific vehicle/telemetry inquiries or reported issues must be diagnosis
+        # unless explicitly asking for command syntax.
+        # General product how-to queries without a vehicle number are NOT overridden.
+        if is_diagnostic_inquiry and not is_explicit_cmd:
             if result and result.kind in (QueryKind.DEVICE_COMMANDS, QueryKind.STATIC_INFO):
                 logger.info(
-                    f"[QUERY_CLASSIFIER] Overriding '{result.kind.value}' to 'diagnosis' for vehicle-specific inquiry: '{raw_text}'",
+                    f"[QUERY_CLASSIFIER] Overriding '{result.kind.value}' to 'diagnosis' for vehicle/telemetry inquiry: '{raw_text}'",
                     extra={'session_id': session_id}
                 )
                 result = QueryClassification(
@@ -74,12 +100,25 @@ def make_node(runtime):
                 )
 
         if result is None:
-            if is_cmd_query and not is_vehicle_query:
-                result = QueryClassification(kind=QueryKind.DEVICE_COMMANDS, confidence=0.92, reason='command query baseline', device_type=found_device)
-            elif is_vehicle_query:
-                result = QueryClassification(kind=QueryKind.DIAGNOSIS, confidence=0.95, reason='vehicle query baseline')
+            if is_cmd_query and not (has_vehicle_no and not is_explicit_cmd):
+                result = QueryClassification(
+                    kind=QueryKind.DEVICE_COMMANDS,
+                    confidence=0.92,
+                    reason='command query baseline',
+                    device_type=found_device
+                )
+            elif is_diagnostic_inquiry:
+                result = QueryClassification(
+                    kind=QueryKind.DIAGNOSIS,
+                    confidence=0.95,
+                    reason='vehicle/telemetry query baseline'
+                )
             else:
-                result = QueryClassification(kind=QueryKind.STATIC_INFO if static else QueryKind.DIAGNOSIS, confidence=0.83, reason='keyword baseline')
+                result = QueryClassification(
+                    kind=QueryKind.STATIC_INFO,
+                    confidence=0.85,
+                    reason='static info baseline'
+                )
             logger.info(f"[QUERY_CLASSIFIER] Baseline classified query: kind='{result.kind.value}' (conf={result.confidence:.2f})", extra={'session_id': session_id})
 
         device_type_query = result.device_type or found_device
